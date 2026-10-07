@@ -1,1 +1,1 @@
-"""DangerBot: Twitch song requests."""
+"""DangerBotanger: Twitch song requests."""

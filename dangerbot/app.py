@@ -30,7 +30,7 @@ async def run():
 
 
 def main():
-    parser = argparse.ArgumentParser(description="DangerBot Twitch + Spotify")
+    parser = argparse.ArgumentParser(description="DangerBotanger Twitch + Spotify")
     sub = parser.add_subparsers(dest="command")
     auth = sub.add_parser("auth", help="Autorizar conta e salvar refresh token")
     auth.add_argument("provider", choices=["spotify", "twitch"])

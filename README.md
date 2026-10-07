@@ -1,4 +1,4 @@
-# DangerBot
+# DangerBotanger
 
 Bot Twitch em Python: `!sr <música e artista>` busca o primeiro resultado na Spotify Web API, aplica regras e salva o pedido na fila local. Um worker envia os pedidos em ordem à fila do Spotify. `!queue` mostra quantos pedidos aguardam envio.
 
