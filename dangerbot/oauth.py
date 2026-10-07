@@ -2,6 +2,7 @@ import asyncio
 import json
 import os
 import secrets
+import ssl
 import time
 import webbrowser
 from http.server import BaseHTTPRequestHandler, HTTPServer
@@ -68,16 +69,25 @@ class OAuth:
 
 async def authorize(provider):
     load_dotenv()
-    default_redirect = ("http://localhost:8888/callback" if provider == "twitch"
+    default_redirect = ("https://localhost:8888/callback" if provider == "twitch"
                         else "http://127.0.0.1:8888/callback")
     redirect = os.getenv(provider.upper() + "_REDIRECT_URI", default_redirect)
     parsed = urlparse(redirect)
     allowed_hosts = {"localhost", "127.0.0.1"} if provider == "twitch" else {"127.0.0.1"}
-    if (parsed.scheme != "http" or parsed.hostname not in allowed_hosts or not parsed.port
+    if (parsed.scheme not in {"http", "https"} or parsed.hostname not in allowed_hosts or not parsed.port
             or parsed.query or parsed.fragment or parsed.username or parsed.password):
         raise OAuthError(f"Use {provider.upper()}_REDIRECT_URI={default_redirect}.")
     state = secrets.token_urlsafe(32)
     result = {}
+    tls_context = None
+    if parsed.scheme == "https":
+        tls_context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+        try:
+            tls_context.load_cert_chain(
+                os.getenv("OAUTH_TLS_CERT", "data/localhost-cert.pem"),
+                os.getenv("OAUTH_TLS_KEY", "data/localhost-key.pem"))
+        except (OSError, ssl.SSLError):
+            raise OAuthError("Certificado HTTPS ausente ou inválido. Execute scripts/create-local-cert.ps1.") from None
 
     class Callback(BaseHTTPRequestHandler):
         def do_GET(self):
@@ -103,6 +113,8 @@ async def authorize(provider):
             "client_id": oauth.client_id, "response_type": "code", "redirect_uri": redirect,
             "scope": PROVIDERS[provider][2], "state": state})
         with HTTPServer(("127.0.0.1", parsed.port), Callback) as server:
+            if tls_context is not None:
+                server.socket = tls_context.wrap_socket(server.socket, server_side=True)
             server.timeout = 1
             print("Abra a URL para autorizar sua conta:\n" + url)
             webbrowser.open(url)

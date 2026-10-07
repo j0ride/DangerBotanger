@@ -13,7 +13,7 @@ python -m pip install -e .
 Copy-Item .env.example .env
 ```
 
-Cadastre um aplicativo no [Spotify Dashboard](https://developer.spotify.com/dashboard) e outro no [Twitch Developer Console](https://dev.twitch.tv/console/apps). No Spotify cadastre `http://127.0.0.1:8888/callback` (SPOTIFY_REDIRECT_URI); na Twitch cadastre `http://localhost:8888/callback` (TWITCH_REDIRECT_URI). Os callbacks HTTP locais são exceções para desenvolvimento; o bot atual recebe callbacks localmente, sem HTTPS. Preencha os client IDs e secrets no `.env`, além de `TWITCH_CHANNEL` e `TWITCH_BOT_NAME`. A conta autorizada na Twitch deve ser a conta de `TWITCH_BOT_NAME`.
+Cadastre um aplicativo no [Spotify Dashboard](https://developer.spotify.com/dashboard) e outro no [Twitch Developer Console](https://dev.twitch.tv/console/apps). No Spotify cadastre `http://127.0.0.1:8888/callback` (SPOTIFY_REDIRECT_URI); na Twitch cadastre `https://localhost:8888/callback` (TWITCH_REDIRECT_URI). O callback Twitch usa HTTPS com certificado local; o Spotify usa a exceção HTTP para loopback. Antes de autorizar a Twitch, gere o certificado com scripts/create-local-cert.ps1 (ou execute o comando OpenSSL contido no script se a política do PowerShell impedir scripts). OAUTH_TLS_CERT e OAUTH_TLS_KEY indicam os arquivos PEM em data/. O certificado é autoassinado e o navegador pode mostrar um aviso: prossiga apenas para o callback local https://localhost:8888. Nenhum certificado é instalado no Windows. O certificado expira em 365 dias. Preencha os client IDs e secrets no `.env`, além de `TWITCH_CHANNEL` e `TWITCH_BOT_NAME`. A conta autorizada na Twitch deve ser a conta de `TWITCH_BOT_NAME`.
 
 ```powershell
 python main.py auth spotify
