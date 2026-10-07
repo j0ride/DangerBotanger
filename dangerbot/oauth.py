@@ -68,10 +68,14 @@ class OAuth:
 
 async def authorize(provider):
     load_dotenv()
-    redirect = os.getenv("OAUTH_REDIRECT_URI", "http://127.0.0.1:8888/callback")
+    default_redirect = ("http://localhost:8888/callback" if provider == "twitch"
+                        else "http://127.0.0.1:8888/callback")
+    redirect = os.getenv(provider.upper() + "_REDIRECT_URI", default_redirect)
     parsed = urlparse(redirect)
-    if parsed.scheme != "http" or parsed.hostname != "127.0.0.1" or not parsed.port or parsed.query:
-        raise OAuthError("Use OAUTH_REDIRECT_URI=http://127.0.0.1:8888/callback.")
+    allowed_hosts = {"localhost", "127.0.0.1"} if provider == "twitch" else {"127.0.0.1"}
+    if (parsed.scheme != "http" or parsed.hostname not in allowed_hosts or not parsed.port
+            or parsed.query or parsed.fragment or parsed.username or parsed.password):
+        raise OAuthError(f"Use {provider.upper()}_REDIRECT_URI={default_redirect}.")
     state = secrets.token_urlsafe(32)
     result = {}
 

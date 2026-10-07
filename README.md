@@ -13,7 +13,7 @@ python -m pip install -e .
 Copy-Item .env.example .env
 ```
 
-Cadastre um aplicativo no [Spotify Dashboard](https://developer.spotify.com/dashboard) e outro no [Twitch Developer Console](https://dev.twitch.tv/console/apps). Configure em ambos a redirect URI `http://127.0.0.1:8888/callback`. Preencha os client IDs e secrets no `.env`, além de `TWITCH_CHANNEL` e `TWITCH_BOT_NAME`. A conta autorizada na Twitch deve ser a conta de `TWITCH_BOT_NAME`.
+Cadastre um aplicativo no [Spotify Dashboard](https://developer.spotify.com/dashboard) e outro no [Twitch Developer Console](https://dev.twitch.tv/console/apps). No Spotify cadastre `http://127.0.0.1:8888/callback` (SPOTIFY_REDIRECT_URI); na Twitch cadastre `http://localhost:8888/callback` (TWITCH_REDIRECT_URI). Os callbacks HTTP locais são exceções para desenvolvimento; o bot atual recebe callbacks localmente, sem HTTPS. Preencha os client IDs e secrets no `.env`, além de `TWITCH_CHANNEL` e `TWITCH_BOT_NAME`. A conta autorizada na Twitch deve ser a conta de `TWITCH_BOT_NAME`.
 
 ```powershell
 python main.py auth spotify
