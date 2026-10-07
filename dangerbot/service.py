@@ -58,11 +58,46 @@ class SongRequests:
     def __init__(self, spotify, queue, policy):
         self.spotify, self.queue, self.policy = spotify, queue, policy
         self.lock = asyncio.Lock()
+        self.skip_until = 0
 
     async def handle(self, user, message):
         command, _, query = message.strip().partition(" ")
         if command.lower() == "!queue":
-            return f"Pedidos aguardando envio: {self.queue.count()}."
+            items = "; ".join(f"#{row['id']} {row['label'][:60]}" for row in self.queue.pending())
+            return f"Pedidos aguardando envio: {self.queue.count()}." + (f" {items}" if items else "")
+        if command.lower() == "!skip":
+            if query.strip():
+                return "Uso: !skip"
+            if not user.roles & {"moderator", "broadcaster"}:
+                return "Somente moderadores e o dono do canal podem pular músicas."
+            async with self.lock:
+                now = self.policy.clock()
+                if now < self.skip_until:
+                    return f"Aguarde {math.ceil(self.skip_until - now)}s para pular novamente."
+                self.skip_until = now + 5
+                try:
+                    await self.spotify.skip()
+                except SpotifyError as error:
+                    self.skip_until = max(self.skip_until, now + error.retry_after)
+                    if error.uncertain:
+                        return "Não foi possível confirmar o skip. Confira o Spotify antes de tentar novamente."
+                    return str(error)
+                except OAuthError as error:
+                    return str(error)
+                return "Música pulada no Spotify."
+        if command.lower() == "!remove":
+            argument = query.strip().removeprefix("#")
+            if not argument.isascii() or not argument.isdecimal() or len(argument) > 18 or int(argument) <= 0:
+                return "Uso: !remove <id do pedido>. Exemplo: !remove 12"
+            request_id = int(argument)
+            row = self.queue.get(request_id)
+            if row is None:
+                return f"Pedido #{request_id} não encontrado."
+            if row["user"].casefold() != user.name.casefold() and not user.roles & {"moderator", "broadcaster"}:
+                return "Você só pode remover seus próprios pedidos."
+            if not self.queue.remove(request_id):
+                return "Este pedido não está pendente. Não é possível remover músicas já enviadas ao Spotify."
+            return f"Pedido #{request_id} removido da fila do bot."
         if command.lower() != "!sr":
             return None
         if not query.strip():

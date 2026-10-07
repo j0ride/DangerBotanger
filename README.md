@@ -2,6 +2,17 @@
 
 Bot Twitch em Python: `!sr <música e artista>` busca o primeiro resultado na Spotify Web API, aplica regras e salva o pedido na fila local. Um worker envia os pedidos em ordem à fila do Spotify. `!queue` mostra quantos pedidos aguardam envio.
 
+Comandos no chat:
+
+| Comando | Ação | Permissão |
+| --- | --- | --- |
+| `!sr <música e artista>` | Solicita música | Configurada em REQUEST_PERMISSION |
+| `!queue` | Mostra quantidade e IDs dos primeiros 3 pedidos pendentes | Todos |
+| `!skip` | Pula a música atual no Spotify | Moderadores e dono do canal |
+| `!remove <id>` | Cancela um pedido pendente na fila local; aceita também #id | Autor do pedido; moderadores e dono podem cancelar qualquer pedido |
+
+Exemplo: `!remove 12` cancela o pedido #12. O ID aparece na confirmação do pedido e em `!queue`. Pedidos em envio, já enviados ou com entrega incerta não podem ser removidos. O worker envia os pedidos rapidamente, então o cancelamento pode ter uma janela curta. Cancelamentos não devolvem cooldown. `!skip` tem cooldown compartilhado de 5 segundos e respeita Retry-After em HTTP 429; não reenvia automaticamente uma operação com resultado incerto. A permissão Spotify necessária já faz parte do OAuth existente.
+
 ## Preparação
 
 Python 3.11+:

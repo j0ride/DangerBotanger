@@ -71,3 +71,7 @@ class Spotify:
         if self.device_id:
             params["device_id"] = self.device_id
         await self.request("POST", "me/player/queue", expect_json=False, params=params)
+
+    async def skip(self):
+        params = {"device_id": self.device_id} if self.device_id else {}
+        await self.request("POST", "me/player/next", expect_json=False, params=params)

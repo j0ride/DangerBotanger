@@ -28,6 +28,7 @@ class FakeSpotify:
     def __init__(self, error=None):
         self.error = error
         self.sent = []
+        self.skips = 0
 
     async def search(self, query):
         return TRACK
@@ -37,6 +38,11 @@ class FakeSpotify:
             raise self.error
         self.sent.append(uri)
 
+    async def skip(self):
+        if self.error:
+            raise self.error
+        self.skips += 1
+
 
 class BotTests(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self):
@@ -44,6 +50,68 @@ class BotTests(unittest.IsolatedAsyncioTestCase):
 
     async def asyncTearDown(self):
         self.queue.close()
+
+    async def test_skip_permissions_and_cooldown(self):
+        spotify = FakeSpotify()
+        service = SongRequests(spotify, self.queue, Policy(config(), clock=lambda: 100))
+        self.assertIn("Somente", await service.handle(User("viewer"), "!skip"))
+        self.assertEqual(spotify.skips, 0)
+        moderator = User("mod", frozenset({"moderator"}))
+        self.assertIn("pulada", await service.handle(moderator, "!skip"))
+        self.assertIn("Aguarde", await service.handle(moderator, "!skip"))
+        self.assertEqual(spotify.skips, 1)
+
+    async def test_skip_errors_do_not_confirm_or_retry(self):
+        for error, expected in [(SpotifyError("Sem dispositivo"), "Sem dispositivo"),
+                                (SpotifyError("timeout", uncertain=True), "confirmar")]:
+            service = SongRequests(FakeSpotify(error), self.queue, Policy(config()))
+            reply = await service.handle(User("owner", frozenset({"broadcaster"})), "!skip")
+            self.assertIn(expected, reply)
+
+    async def test_remove_ownership_and_moderation(self):
+        service = SongRequests(FakeSpotify(), self.queue, Policy(config()))
+        request_id = self.queue.add("viewer", TRACK)
+        self.assertIn("próprios", await service.handle(User("other"), f"!remove {request_id}"))
+        self.assertEqual(self.queue.count(), 1)
+        self.assertIn("removido", await service.handle(User("viewer"), f"!remove #{request_id}"))
+        await service.dispatch_once()
+        self.assertEqual(service.spotify.sent, [])
+        request_id = self.queue.add("viewer", TRACK)
+        self.assertIn("removido", await service.handle(
+            User("mod", frozenset({"moderator"})), f"!remove {request_id}"))
+
+    async def test_remove_rejects_invalid_missing_and_delivered_requests(self):
+        service = SongRequests(FakeSpotify(), self.queue, Policy(config()))
+        for argument in ["", "abc", "-1", "0", "12 13", "9" * 100]:
+            self.assertIn("Uso:", await service.handle(User("viewer"), "!remove " + argument))
+        self.assertIn("não encontrado", await service.handle(User("viewer"), "!remove 123"))
+        for status in ["sending", "sent", "uncertain", "removed"]:
+            request_id = self.queue.add("viewer", TRACK)
+            self.queue.update(request_id, status)
+            self.assertIn("não está pendente", await service.handle(
+                User("viewer"), f"!remove {request_id}"))
+            self.assertEqual(self.queue.get(request_id)["status"], status)
+
+    async def test_queue_lists_removable_ids(self):
+        service = SongRequests(FakeSpotify(), self.queue, Policy(config()))
+        request_id = self.queue.add("viewer", TRACK)
+        self.assertIn(f"#{request_id}", await service.handle(User("viewer"), "!queue"))
+
+    async def test_spotify_skip_uses_device_and_accepts_non_json_success(self):
+        class Auth:
+            async def access_token(self, force=False):
+                return "token"
+        for device in ["", "device1"]:
+            calls = []
+            def transport(request):
+                calls.append(request)
+                return httpx.Response(200, content=b"OK")
+            async with httpx.AsyncClient(transport=httpx.MockTransport(transport)) as client:
+                await Spotify(client, Auth(), device).skip()
+            self.assertEqual(len(calls), 1)
+            self.assertEqual(calls[0].method, "POST")
+            self.assertEqual(calls[0].url.path, "/v1/me/player/next")
+            self.assertEqual(dict(calls[0].url.params), {"device_id": device} if device else {})
 
     async def test_request_dispatch_and_cooldown(self):
         spotify = FakeSpotify()
