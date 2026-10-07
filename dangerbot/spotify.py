@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from json import JSONDecodeError
 import httpx
 from .oauth import OAuth
 
@@ -29,7 +30,7 @@ class Spotify:
     def __init__(self, client, oauth: OAuth, device_id=""):
         self.client, self.oauth, self.device_id = client, oauth, device_id
 
-    async def request(self, method, path, **kwargs):
+    async def request(self, method, path, *, expect_json=True, **kwargs):
         for attempt in range(2):
             token = await self.oauth.access_token(force=attempt == 1)
             try:
@@ -40,7 +41,13 @@ class Spotify:
             if response.status_code == 401 and attempt == 0:
                 continue
             if response.is_success:
-                return response.json() if response.content else None
+                if not expect_json:
+                    return None
+                try:
+                    return response.json()
+                except (JSONDecodeError, UnicodeDecodeError):
+                    raise SpotifyError("Spotify retornou uma resposta inválida. Tente novamente.",
+                                       uncertain=method == "POST") from None
             if response.status_code == 429:
                 raise SpotifyError("Spotify limitou as requisições.",
                                    retry_after=int(response.headers.get("Retry-After", "30")))
@@ -63,4 +70,4 @@ class Spotify:
         params = {"uri": uri}
         if self.device_id:
             params["device_id"] = self.device_id
-        await self.request("POST", "me/player/queue", params=params)
+        await self.request("POST", "me/player/queue", expect_json=False, params=params)

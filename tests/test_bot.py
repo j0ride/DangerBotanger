@@ -113,6 +113,43 @@ class BotTests(unittest.IsolatedAsyncioTestCase):
                 await spotify.enqueue(TRACK.uri)
             self.assertEqual(error.exception.retry_after, 42)
 
+    async def test_queue_success_does_not_require_json_and_is_not_resent(self):
+        class Auth:
+            async def access_token(self, force=False):
+                return "token"
+        for status, body in [(204, b""), (200, b""), (200, b" "),
+                             (200, b"OK"), (204, b"Added to queue")]:
+            with self.subTest(status=status, body=body):
+                calls = []
+                def transport(request):
+                    calls.append(request)
+                    return httpx.Response(status, content=body)
+                async with httpx.AsyncClient(transport=httpx.MockTransport(transport)) as client:
+                    self.queue.db.execute("DELETE FROM requests")
+                    request_id = self.queue.add("viewer", TRACK)
+                    service = SongRequests(Spotify(client, Auth()), self.queue, Policy(config()))
+                    await service.dispatch_once()
+                    await service.dispatch_once()
+                    self.assertEqual(len(calls), 1)
+                    self.assertEqual(calls[0].method, "POST")
+                    self.assertEqual(calls[0].url.params["uri"], TRACK.uri)
+                    status_row = self.queue.db.execute(
+                        "SELECT status FROM requests WHERE id=?", (request_id,)).fetchone()
+                    self.assertEqual(status_row[0], "sent")
+
+    async def test_invalid_search_response_returns_error_without_stopping_bot(self):
+        class Auth:
+            async def access_token(self, force=False):
+                return "token"
+        for body in [b"", b" ", b"<html>unavailable</html>"]:
+            with self.subTest(body=body):
+                async with httpx.AsyncClient(transport=httpx.MockTransport(
+                        lambda _: httpx.Response(200, content=body))) as client:
+                    service = SongRequests(Spotify(client, Auth()), self.queue, Policy(config()))
+                    reply = await service.handle(User("viewer"), "!sr song")
+                    self.assertIn("resposta inválida", reply)
+                    self.assertEqual(self.queue.count(), 0)
+
 
 class PersistenceTests(unittest.TestCase):
     def test_restart_quarantines_inflight_request(self):
