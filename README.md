@@ -1,17 +1,20 @@
 # DangerBotanger
 
-Bot Twitch em Python: `!sr <música e artista>` busca o primeiro resultado na Spotify Web API, aplica regras e salva o pedido na fila local. Um worker envia os pedidos em ordem à fila do Spotify. `!queue` mostra quantos pedidos aguardam envio.
+Bot Twitch em Python: `!sr <música e artista>` busca o primeiro resultado na Spotify Web API, aplica regras e salva o pedido na fila local. Um worker envia os pedidos em ordem à fila do Spotify. `!np` consulta a reprodução atual e `!queue` consulta a fila real do Spotify.
 
 Comandos no chat:
 
 | Comando | Ação | Permissão |
 | --- | --- | --- |
 | `!sr <música e artista>` | Solicita música | Configurada em REQUEST_PERMISSION |
-| `!queue` | Mostra quantidade e IDs dos primeiros 3 pedidos pendentes | Todos |
+| `!np` | Mostra música e artista atuais; informa se está pausado | Todos |
+| `!queue [página]` | Mostra a fila real do Spotify, 5 itens por página | Todos |
 | `!skip` | Pula a música atual no Spotify | Moderadores e dono do canal |
-| `!remove <id>` | Cancela um pedido pendente na fila local; aceita também #id | Autor do pedido; moderadores e dono podem cancelar qualquer pedido |
+| `!remove` | Informa que a remoção da fila Spotify não está disponível na Web API | Todos |
 
-Exemplo: `!remove 12` cancela o pedido #12. O ID aparece na confirmação do pedido e em `!queue`. Pedidos em envio, já enviados ou com entrega incerta não podem ser removidos. O worker envia os pedidos rapidamente, então o cancelamento pode ter uma janela curta. Cancelamentos não devolvem cooldown. `!skip` tem cooldown compartilhado de 5 segundos e respeita Retry-After em HTTP 429; não reenvia automaticamente uma operação com resultado incerto. A permissão Spotify necessária já faz parte do OAuth existente.
+Exemplo: `!queue 2` mostra os itens 6 a 10 da fila retornada pela API. As posições mudam conforme a reprodução avança e não são IDs dos pedidos locais. A fila consultada pode incluir músicas da playlist/contexto de reprodução, além dos pedidos do bot. A API retorna uma visão da fila, que pode não incluir todos os itens mostrados pelo aplicativo. As consultas refletem a conta Spotify autorizada; SPOTIFY_DEVICE_ID direciona operações de escrita, não as consultas de reprodução e fila.
+
+A Web API documentada oferece consulta e adição à fila, mas não remoção de seus itens. Remova músicas diretamente pelo aplicativo Spotify. `!remove` não cancela mais pedidos locais e não modifica a reprodução. `!skip` pula somente a música atual, tem cooldown compartilhado de 5 segundos e respeita Retry-After em HTTP 429; não reenvia automaticamente uma operação com resultado incerto. As permissões Spotify necessárias já fazem parte do OAuth existente. Consulte a [referência do Player](https://developer.spotify.com/documentation/web-api/reference/get-queue).
 
 ## Preparação
 

@@ -30,7 +30,7 @@ class Spotify:
     def __init__(self, client, oauth: OAuth, device_id=""):
         self.client, self.oauth, self.device_id = client, oauth, device_id
 
-    async def request(self, method, path, *, expect_json=True, **kwargs):
+    async def request(self, method, path, *, expect_json=True, allow_empty=False, **kwargs):
         for attempt in range(2):
             token = await self.oauth.access_token(force=attempt == 1)
             try:
@@ -42,6 +42,8 @@ class Spotify:
                 continue
             if response.is_success:
                 if not expect_json:
+                    return None
+                if allow_empty and response.status_code == 204:
                     return None
                 try:
                     return response.json()
@@ -75,3 +77,28 @@ class Spotify:
     async def skip(self):
         params = {"device_id": self.device_id} if self.device_id else {}
         await self.request("POST", "me/player/next", expect_json=False, params=params)
+
+    @staticmethod
+    def item_label(item):
+        if not isinstance(item, dict):
+            raise SpotifyError("Spotify retornou um item inválido.")
+        name = item.get("name") or "Item indisponível"
+        artists = item.get("artists") or []
+        names = [artist.get("name", "") for artist in artists if isinstance(artist, dict)]
+        if not names and isinstance(item.get("show"), dict):
+            names = [item["show"].get("name", "")]
+        return str(name) + (" — " + ", ".join(filter(None, names)) if any(names) else "")
+
+    async def playback(self):
+        # user-read-playback-state already belongs to our initial OAuth scopes.
+        data = await self.request("GET", "me/player", allow_empty=True,
+                                  params={"additional_types": "track,episode"})
+        if data is not None and not isinstance(data, dict):
+            raise SpotifyError("Spotify retornou uma reprodução inválida.")
+        return data
+
+    async def playback_queue(self):
+        data = await self.request("GET", "me/player/queue")
+        if not isinstance(data, dict) or not isinstance(data.get("queue"), list):
+            raise SpotifyError("Spotify retornou uma fila inválida.")
+        return data["queue"]

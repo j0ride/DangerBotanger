@@ -3,7 +3,7 @@ import math
 import logging
 import time
 from dataclasses import dataclass
-from .spotify import SpotifyError
+from .spotify import Spotify, SpotifyError
 from .oauth import OAuthError
 
 
@@ -62,9 +62,37 @@ class SongRequests:
 
     async def handle(self, user, message):
         command, _, query = message.strip().partition(" ")
+        if command.lower() == "!np":
+            if query.strip():
+                return "Uso: !np"
+            try:
+                playback = await self.spotify.playback()
+                if not playback or not playback.get("item"):
+                    return "Nenhuma música em reprodução no Spotify."
+                label = Spotify.item_label(playback["item"])
+                state = "Tocando agora" if playback.get("is_playing") else "Spotify pausado"
+                return f"{state}: {label[:220]}."
+            except (SpotifyError, OAuthError) as error:
+                return str(error)
         if command.lower() == "!queue":
-            items = "; ".join(f"#{row['id']} {row['label'][:60]}" for row in self.queue.pending())
-            return f"Pedidos aguardando envio: {self.queue.count()}." + (f" {items}" if items else "")
+            argument = query.strip()
+            if argument and (not argument.isascii() or not argument.isdecimal()
+                             or len(argument) > 6 or int(argument) <= 0):
+                return "Uso: !queue [página]. Exemplo: !queue 2"
+            page = int(argument) if argument else 1
+            try:
+                queue = await self.spotify.playback_queue()
+                if not queue:
+                    return "A fila do Spotify está vazia."
+                pages = math.ceil(len(queue) / 5)
+                if page > pages:
+                    return f"Página inválida. A fila retornada pelo Spotify tem {pages} página(s)."
+                start = (page - 1) * 5
+                items = "; ".join(f"{index}. {Spotify.item_label(item)[:45]}"
+                                  for index, item in enumerate(queue[start:start + 5], start + 1))
+                return f"Fila Spotify ({page}/{pages}): {items}"
+            except (SpotifyError, OAuthError) as error:
+                return str(error)
         if command.lower() == "!skip":
             if query.strip():
                 return "Uso: !skip"
@@ -86,18 +114,8 @@ class SongRequests:
                     return str(error)
                 return "Música pulada no Spotify."
         if command.lower() == "!remove":
-            argument = query.strip().removeprefix("#")
-            if not argument.isascii() or not argument.isdecimal() or len(argument) > 18 or int(argument) <= 0:
-                return "Uso: !remove <id do pedido>. Exemplo: !remove 12"
-            request_id = int(argument)
-            row = self.queue.get(request_id)
-            if row is None:
-                return f"Pedido #{request_id} não encontrado."
-            if row["user"].casefold() != user.name.casefold() and not user.roles & {"moderator", "broadcaster"}:
-                return "Você só pode remover seus próprios pedidos."
-            if not self.queue.remove(request_id):
-                return "Este pedido não está pendente. Não é possível remover músicas já enviadas ao Spotify."
-            return f"Pedido #{request_id} removido da fila do bot."
+            return ("A API do Spotify não permite remover músicas da fila. "
+                    "Remova pelo aplicativo Spotify; !skip pula a música atual.")
         if command.lower() != "!sr":
             return None
         if not query.strip():

@@ -29,6 +29,8 @@ class FakeSpotify:
         self.error = error
         self.sent = []
         self.skips = 0
+        self.playback_data = None
+        self.spotify_queue = []
 
     async def search(self, query):
         return TRACK
@@ -42,6 +44,16 @@ class FakeSpotify:
         if self.error:
             raise self.error
         self.skips += 1
+
+    async def playback(self):
+        if self.error:
+            raise self.error
+        return self.playback_data
+
+    async def playback_queue(self):
+        if self.error:
+            raise self.error
+        return self.spotify_queue
 
 
 class BotTests(unittest.IsolatedAsyncioTestCase):
@@ -68,34 +80,70 @@ class BotTests(unittest.IsolatedAsyncioTestCase):
             reply = await service.handle(User("owner", frozenset({"broadcaster"})), "!skip")
             self.assertIn(expected, reply)
 
-    async def test_remove_ownership_and_moderation(self):
+    async def test_remove_reports_spotify_limitation_without_changing_local_queue(self):
         service = SongRequests(FakeSpotify(), self.queue, Policy(config()))
         request_id = self.queue.add("viewer", TRACK)
-        self.assertIn("próprios", await service.handle(User("other"), f"!remove {request_id}"))
-        self.assertEqual(self.queue.count(), 1)
-        self.assertIn("removido", await service.handle(User("viewer"), f"!remove #{request_id}"))
-        await service.dispatch_once()
-        self.assertEqual(service.spotify.sent, [])
-        request_id = self.queue.add("viewer", TRACK)
-        self.assertIn("removido", await service.handle(
-            User("mod", frozenset({"moderator"})), f"!remove {request_id}"))
+        for user in [User("viewer"), User("mod", frozenset({"moderator"}))]:
+            self.assertIn("não permite remover", await service.handle(user, "!remove 1"))
+            self.assertEqual(self.queue.get(request_id)["status"], "pending")
+        self.assertEqual(service.spotify.skips, 0)
 
-    async def test_remove_rejects_invalid_missing_and_delivered_requests(self):
+    async def test_queue_reads_spotify_instead_of_local_outbox_and_paginates(self):
         service = SongRequests(FakeSpotify(), self.queue, Policy(config()))
-        for argument in ["", "abc", "-1", "0", "12 13", "9" * 100]:
-            self.assertIn("Uso:", await service.handle(User("viewer"), "!remove " + argument))
-        self.assertIn("não encontrado", await service.handle(User("viewer"), "!remove 123"))
-        for status in ["sending", "sent", "uncertain", "removed"]:
-            request_id = self.queue.add("viewer", TRACK)
-            self.queue.update(request_id, status)
-            self.assertIn("não está pendente", await service.handle(
-                User("viewer"), f"!remove {request_id}"))
-            self.assertEqual(self.queue.get(request_id)["status"], status)
+        self.queue.add("viewer", TRACK)
+        self.assertIn("vazia", await service.handle(User("viewer"), "!queue"))
+        service.spotify.spotify_queue = [
+            {"name": f"Spotify Song {index}", "artists": [{"name": "Artist"}]}
+            for index in range(1, 8)]
+        first = await service.handle(User("viewer"), "!queue")
+        second = await service.handle(User("viewer"), "!queue 2")
+        self.assertIn("1. Spotify Song 1", first)
+        self.assertNotIn("Spotify Song 6", first)
+        self.assertIn("6. Spotify Song 6", second)
+        self.assertIn("2/2", second)
+        self.assertIn("Página inválida", await service.handle(User("viewer"), "!queue 3"))
+        for argument in ["0", "-1", "abc", "9" * 100]:
+            self.assertIn("Uso:", await service.handle(User("viewer"), "!queue " + argument))
 
-    async def test_queue_lists_removable_ids(self):
+    async def test_np_handles_playing_paused_episode_and_no_playback(self):
         service = SongRequests(FakeSpotify(), self.queue, Policy(config()))
-        request_id = self.queue.add("viewer", TRACK)
-        self.assertIn(f"#{request_id}", await service.handle(User("viewer"), "!queue"))
+        self.assertIn("Nenhuma", await service.handle(User("viewer"), "!np"))
+        service.spotify.playback_data = {"item": {"name": "Song", "artists": [{"name": "Artist"}]},
+                                         "is_playing": True}
+        self.assertIn("Tocando agora: Song — Artist", await service.handle(User("viewer"), "!np"))
+        service.spotify.playback_data["is_playing"] = False
+        self.assertIn("pausado", await service.handle(User("viewer"), "!np"))
+        service.spotify.playback_data["item"] = {"name": "Episode", "show": {"name": "Podcast"}}
+        self.assertIn("Episode — Podcast", await service.handle(User("viewer"), "!np"))
+        service.spotify.playback_data = {"item": None}
+        self.assertIn("Nenhuma", await service.handle(User("viewer"), "!np"))
+
+    async def test_spotify_read_errors_are_returned_to_chat(self):
+        service = SongRequests(FakeSpotify(SpotifyError("Spotify indisponível")),
+                               self.queue, Policy(config()))
+        for command in ["!np", "!queue"]:
+            self.assertEqual(await service.handle(User("viewer"), command), "Spotify indisponível")
+
+    async def test_playback_and_queue_endpoints_and_empty_playback(self):
+        class Auth:
+            async def access_token(self, force=False):
+                return "token"
+        calls = []
+        responses = iter([httpx.Response(204),
+                          httpx.Response(200, json={"queue": [{"name": "Remote song"}]}),
+                          httpx.Response(200, json={"unexpected": []})])
+        def transport(request):
+            calls.append(request)
+            return next(responses)
+        async with httpx.AsyncClient(transport=httpx.MockTransport(transport)) as client:
+            spotify = Spotify(client, Auth())
+            self.assertIsNone(await spotify.playback())
+            self.assertEqual(await spotify.playback_queue(), [{"name": "Remote song"}])
+            with self.assertRaises(SpotifyError):
+                await spotify.playback_queue()
+        self.assertEqual(calls[0].url.path, "/v1/me/player")
+        self.assertEqual(calls[1].url.path, "/v1/me/player/queue")
+        self.assertTrue(all(call.method == "GET" for call in calls))
 
     async def test_spotify_skip_uses_device_and_accepts_non_json_success(self):
         class Auth:
