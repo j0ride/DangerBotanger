@@ -24,7 +24,7 @@ class Track:
 
     @property
     def label(self):
-        return self.name + " — " + ", ".join(self.artists)
+        return self.name + " - " + ", ".join(self.artists)
 
 
 class Spotify:
