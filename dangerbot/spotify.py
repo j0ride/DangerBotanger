@@ -88,7 +88,7 @@ class Spotify:
         names = [artist.get("name", "") for artist in artists if isinstance(artist, dict)]
         if not names and isinstance(item.get("show"), dict):
             names = [item["show"].get("name", "")]
-        return str(name) + (" — " + ", ".join(filter(None, names)) if any(names) else "")
+        return str(name) + (" - " + ", ".join(filter(None, names)) if any(names) else "")
 
     async def playback(self):
         # user-read-playback-state already belongs to our initial OAuth scopes.
