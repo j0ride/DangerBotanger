@@ -90,8 +90,8 @@ class BotTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("Wait 5s", await service.handle(owner, "!skip"))
         service.spotify.playback_data = {"item": {"name": "Música original", "artists": [{"name": "Artista"}]},
                                         "is_playing": True}
-        self.assertIn("Now playing: Música original — Artista", await service.handle(viewer, "!np"))
-        self.assertIn("received: Song — Artist", await service.handle(viewer, "!sr song"))
+        self.assertIn("Now playing: Música original - Artista", await service.handle(viewer, "!np"))
+        self.assertIn("received: Song - Artist", await service.handle(viewer, "!sr song"))
         self.assertIn("Wait 60s", await service.handle(viewer, "!sr song"))
         service.policy.config.blocked_users = frozenset({"blocked"})
         self.assertIn("blocked", await service.handle(User("blocked"), "!sr song"))
@@ -155,11 +155,11 @@ class BotTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("Nenhuma", await service.handle(User("viewer"), "!np"))
         service.spotify.playback_data = {"item": {"name": "Song", "artists": [{"name": "Artist"}]},
                                          "is_playing": True}
-        self.assertIn("Tocando agora: Song — Artist", await service.handle(User("viewer"), "!np"))
+        self.assertIn("Tocando agora: Song - Artist", await service.handle(User("viewer"), "!np"))
         service.spotify.playback_data["is_playing"] = False
         self.assertIn("pausado", await service.handle(User("viewer"), "!np"))
         service.spotify.playback_data["item"] = {"name": "Episode", "show": {"name": "Podcast"}}
-        self.assertIn("Episode — Podcast", await service.handle(User("viewer"), "!np"))
+        self.assertIn("Episode - Podcast", await service.handle(User("viewer"), "!np"))
         service.spotify.playback_data = {"item": None}
         self.assertIn("Nenhuma", await service.handle(User("viewer"), "!np"))
 
