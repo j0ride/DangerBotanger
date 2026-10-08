@@ -94,8 +94,8 @@ MESSAGES = {
         "en": "Could not confirm the skip. Check Spotify before trying again."
     },
     "skip_success": {
-        "br": "Música pulada no Spotify.",
-        "en": "Song skipped on Spotify."
+        "br": "Música pulada.",
+        "en": "Song skipped."
     },
     "remove_unavailable": {
         "br": "A API do Spotify não permite remover músicas da fila. Remova pelo aplicativo Spotify; !skip pula a música atual.",
