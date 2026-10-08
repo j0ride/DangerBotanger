@@ -16,6 +16,19 @@ class RequestQueue:
         # A crash during POST cannot safely be retried (Spotify has no idempotency key).
         self.db.execute("UPDATE requests SET status='uncertain' WHERE status='sending'")
         self.db.commit()
+        self.db.execute("CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT NOT NULL)")
+        self.db.commit()
+
+    def language(self):
+        row = self.db.execute("SELECT value FROM settings WHERE key='language'").fetchone()
+        return row[0] if row and row[0] in {'br', 'en'} else 'br'
+
+    def set_language(self, language):
+        if language not in {'br', 'en'}:
+            raise ValueError('Unsupported language')
+        with self.db:
+            self.db.execute("INSERT INTO settings(key,value) VALUES('language',?) "
+                            "ON CONFLICT(key) DO UPDATE SET value=excluded.value", (language,))
 
     def add(self, user, track):
         with self.db:

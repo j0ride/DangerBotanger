@@ -11,6 +11,9 @@ Comandos no chat:
 | `!queue [página]` | Mostra a fila real do Spotify, 5 itens por página | Todos |
 | `!skip` | Pula a música atual no Spotify | Moderadores e dono do canal |
 | `!remove` | Informa que a remoção da fila Spotify não está disponível na Web API | Todos |
+| `!setlang br` / `!setlang en` | Define português brasileiro ou inglês para as respostas no chat | Moderadores e dono do canal |
+
+O idioma padrão é `br`. A escolha de `!setlang` vale para todo o canal, muda imediatamente e fica salva em data/queue.sqlite3 para os próximos reinícios. Nomes de músicas e artistas não são traduzidos. Os comandos continuam com os mesmos nomes nos dois idiomas. Logs de terminal e instruções de configuração permanecem em português.
 
 Exemplo: `!queue 2` mostra os itens 6 a 10 da fila retornada pela API. As posições mudam conforme a reprodução avança e não são IDs dos pedidos locais. A fila consultada pode incluir músicas da playlist/contexto de reprodução, além dos pedidos do bot. A API retorna uma visão da fila, que pode não incluir todos os itens mostrados pelo aplicativo. As consultas refletem a conta Spotify autorizada; SPOTIFY_DEVICE_ID direciona operações de escrita, não as consultas de reprodução e fila.
 

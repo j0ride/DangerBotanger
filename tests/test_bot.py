@@ -63,6 +63,60 @@ class BotTests(unittest.IsolatedAsyncioTestCase):
     async def asyncTearDown(self):
         self.queue.close()
 
+    async def test_setlang_permissions_invalid_input_and_switch_back(self):
+        service = SongRequests(FakeSpotify(), self.queue, Policy(config()))
+        owner = User("owner", frozenset({"broadcaster"}))
+        self.assertIn("Somente", await service.handle(User("viewer"), "!setlang en"))
+        self.assertEqual(service.language, "br")
+        for argument in ["", "pt", "fr", "en br"]:
+            self.assertIn("Uso:", await service.handle(owner, "!setlang " + argument))
+        self.assertIn("English", await service.handle(owner, "!setlang EN"))
+        self.assertEqual(await service.handle(User("viewer"), "!sr"), "Usage: !sr <song and artist>")
+        self.assertIn("Only moderators", await service.handle(User("viewer"), "!setlang br"))
+        self.assertEqual(service.language, "en")
+        self.assertIn("português", await service.handle(
+            User("mod", frozenset({"moderator"})), "!setlang br"))
+        self.assertIn("Uso:", await service.handle(User("viewer"), "!sr"))
+
+    async def test_english_playback_queue_skip_request_and_policy_errors(self):
+        service = SongRequests(FakeSpotify(), self.queue, Policy(config(), clock=lambda: 100))
+        owner = User("owner", frozenset({"broadcaster"}))
+        await service.handle(owner, "!setlang en")
+        viewer = User("viewer")
+        self.assertIn("Nothing", await service.handle(viewer, "!np"))
+        self.assertIn("queue is empty", await service.handle(viewer, "!queue"))
+        self.assertIn("cannot remove", await service.handle(viewer, "!remove"))
+        self.assertIn("Only moderators", await service.handle(viewer, "!skip"))
+        self.assertIn("skipped", await service.handle(owner, "!skip"))
+        self.assertIn("Wait 5s", await service.handle(owner, "!skip"))
+        service.spotify.playback_data = {"item": {"name": "Música original", "artists": [{"name": "Artista"}]},
+                                        "is_playing": True}
+        self.assertIn("Now playing: Música original — Artista", await service.handle(viewer, "!np"))
+        self.assertIn("received: Song — Artist", await service.handle(viewer, "!sr song"))
+        self.assertIn("Wait 60s", await service.handle(viewer, "!sr song"))
+        service.policy.config.blocked_users = frozenset({"blocked"})
+        self.assertIn("blocked", await service.handle(User("blocked"), "!sr song"))
+
+    async def test_english_spotify_and_oauth_errors(self):
+        from dangerbot.oauth import OAuthError
+        for error, expected in [
+            (SpotifyError("Abra o Spotify e inicie a reprodução em um dispositivo."), "start playback"),
+            (SpotifyError("Spotify limitou as requisições."), "rate limit"),
+            (OAuthError("Execute: python main.py auth spotify"), "Authorization failed")]:
+            service = SongRequests(FakeSpotify(error), self.queue, Policy(config()))
+            await service.handle(User("owner", frozenset({"broadcaster"})), "!setlang en")
+            self.assertIn(expected, await service.handle(User("viewer"), "!np"))
+
+    async def test_failed_language_save_keeps_previous_language(self):
+        import sqlite3
+        from unittest.mock import patch
+        service = SongRequests(FakeSpotify(), self.queue, Policy(config()))
+        with patch.object(self.queue, "set_language", side_effect=sqlite3.OperationalError("locked")):
+            reply = await service.handle(User("mod", frozenset({"moderator"})), "!setlang en")
+        self.assertIn("Não foi possível salvar", reply)
+        self.assertEqual(service.language, "br")
+        self.assertEqual(self.queue.language(), "br")
+
     async def test_skip_permissions_and_cooldown(self):
         spotify = FakeSpotify()
         service = SongRequests(spotify, self.queue, Policy(config(), clock=lambda: 100))
@@ -268,6 +322,19 @@ class BotTests(unittest.IsolatedAsyncioTestCase):
 
 
 class PersistenceTests(unittest.TestCase):
+    def test_language_survives_restart_without_losing_requests(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "queue.sqlite3"
+            queue = RequestQueue(path)
+            request_id = queue.add("viewer", TRACK)
+            queue.set_language("en")
+            queue.close()
+            queue = RequestQueue(path)
+            service = SongRequests(FakeSpotify(), queue, Policy(config()))
+            self.assertEqual(service.language, "en")
+            self.assertEqual(queue.get(request_id)["status"], "pending")
+            queue.close()
+
     def test_restart_quarantines_inflight_request(self):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "queue.sqlite3"

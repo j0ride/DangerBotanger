@@ -1,10 +1,12 @@
 import asyncio
 import math
 import logging
+import sqlite3
 import time
 from dataclasses import dataclass
 from .spotify import Spotify, SpotifyError
 from .oauth import OAuthError
+from .i18n import MessageError, error_message, translate
 
 
 @dataclass(frozen=True)
@@ -13,7 +15,7 @@ class User:
     roles: frozenset[str] = frozenset()
 
 
-class RequestRejected(Exception):
+class RequestRejected(MessageError):
     pass
 
 
@@ -26,26 +28,26 @@ class Policy:
     def check_user(self, user):
         c = self.config
         if user.name.casefold() in c.blocked_users:
-            raise RequestRejected("Você está bloqueado para pedidos.")
+            raise RequestRejected("blocked_user")
         permitted = {"everyone": True, "subscriber": bool(user.roles & {"subscriber", "moderator", "broadcaster"}),
                      "moderator": bool(user.roles & {"moderator", "broadcaster"}),
                      "broadcaster": "broadcaster" in user.roles}
         if not permitted[c.permission]:
-            raise RequestRejected("Você não tem permissão para pedir músicas.")
+            raise RequestRejected("request_permission")
         remaining = max(self.global_until, self.users.get(user.name, 0)) - self.clock()
         if remaining > 0:
-            raise RequestRejected(f"Aguarde {math.ceil(remaining)}s para pedir novamente.")
+            raise RequestRejected("request_cooldown", seconds=math.ceil(remaining))
 
     def check_track(self, track):
         c = self.config
         if track.id.casefold() in c.blocked_tracks or track.uri.casefold() in c.blocked_tracks:
-            raise RequestRejected("Música bloqueada.")
+            raise RequestRejected("blocked_track")
         if any(a.casefold() in c.blocked_artists for a in (*track.artists, *track.artist_ids)):
-            raise RequestRejected("Artista bloqueado.")
+            raise RequestRejected("blocked_artist")
         if track.explicit and not c.allow_explicit:
-            raise RequestRejected("Músicas explícitas não são permitidas.")
+            raise RequestRejected("explicit")
         if track.duration_ms > c.max_duration * 1000:
-            raise RequestRejected("Música excede a duração máxima.")
+            raise RequestRejected("duration")
 
     def consume(self, user):
         now = self.clock()
@@ -59,85 +61,101 @@ class SongRequests:
         self.spotify, self.queue, self.policy = spotify, queue, policy
         self.lock = asyncio.Lock()
         self.skip_until = 0
+        self.language = self.queue.language()
+
+    def reply(self, key, **values):
+        return translate(self.language, key, **values)
 
     async def handle(self, user, message):
         command, _, query = message.strip().partition(" ")
+        if command.lower() == "!setlang":
+            if not user.roles & {"moderator", "broadcaster"}:
+                return self.reply("lang_permission")
+            language = query.strip().lower()
+            if language not in {"br", "en"}:
+                return self.reply("lang_usage")
+            try:
+                self.queue.set_language(language)
+            except sqlite3.Error:
+                logging.getLogger(__name__).warning("Não foi possível salvar o idioma.")
+                return self.reply("lang_save_error")
+            self.language = language
+            return self.reply("lang_changed")
         if command.lower() == "!np":
             if query.strip():
-                return "Uso: !np"
+                return self.reply("np_usage")
             try:
                 playback = await self.spotify.playback()
                 if not playback or not playback.get("item"):
-                    return "Nenhuma música em reprodução no Spotify."
-                label = Spotify.item_label(playback["item"])
-                state = "Tocando agora" if playback.get("is_playing") else "Spotify pausado"
-                return f"{state}: {label[:220]}."
+                    return self.reply("np_empty")
+                label = Spotify.item_label(playback["item"], self.language)
+                key = "np_playing" if playback.get("is_playing") else "np_paused"
+                return self.reply(key, label=label[:220])
             except (SpotifyError, OAuthError) as error:
-                return str(error)
+                return error_message(self.language, error)
         if command.lower() == "!queue":
             argument = query.strip()
             if argument and (not argument.isascii() or not argument.isdecimal()
                              or len(argument) > 6 or int(argument) <= 0):
-                return "Uso: !queue [página]. Exemplo: !queue 2"
+                return self.reply("queue_usage")
             page = int(argument) if argument else 1
             try:
                 queue = await self.spotify.playback_queue()
                 if not queue:
-                    return "A fila do Spotify está vazia."
+                    return self.reply("queue_empty")
                 pages = math.ceil(len(queue) / 5)
                 if page > pages:
-                    return f"Página inválida. A fila retornada pelo Spotify tem {pages} página(s)."
+                    return self.reply("queue_page", pages=pages)
                 start = (page - 1) * 5
-                items = "; ".join(f"{index}. {Spotify.item_label(item)[:45]}"
+                items = "; ".join(f"{index}. {Spotify.item_label(item, self.language)[:45]}"
                                   for index, item in enumerate(queue[start:start + 5], start + 1))
-                return f"Fila Spotify ({page}/{pages}): {items}"
+                return self.reply("queue_list", page=page, pages=pages, items=items)
             except (SpotifyError, OAuthError) as error:
-                return str(error)
+                return error_message(self.language, error)
         if command.lower() == "!skip":
             if query.strip():
-                return "Uso: !skip"
+                return self.reply("skip_usage")
             if not user.roles & {"moderator", "broadcaster"}:
-                return "Somente moderadores e o dono do canal podem pular músicas."
+                return self.reply("skip_permission")
             async with self.lock:
                 now = self.policy.clock()
                 if now < self.skip_until:
-                    return f"Aguarde {math.ceil(self.skip_until - now)}s para pular novamente."
+                    return self.reply("skip_cooldown", seconds=math.ceil(self.skip_until - now))
                 self.skip_until = now + 5
                 try:
                     await self.spotify.skip()
                 except SpotifyError as error:
                     self.skip_until = max(self.skip_until, now + error.retry_after)
                     if error.uncertain:
-                        return "Não foi possível confirmar o skip. Confira o Spotify antes de tentar novamente."
-                    return str(error)
+                        return self.reply("skip_uncertain")
+                    return error_message(self.language, error)
                 except OAuthError as error:
-                    return str(error)
-                return "Música pulada no Spotify."
+                    return error_message(self.language, error)
+                return self.reply("skip_success")
         if command.lower() == "!remove":
-            return ("A API do Spotify não permite remover músicas da fila. "
-                    "Remova pelo aplicativo Spotify; !skip pula a música atual.")
+            return self.reply("remove_unavailable")
         if command.lower() != "!sr":
             return None
         if not query.strip():
-            return "Uso: !sr <música e artista>"
+            return self.reply("sr_usage")
         if len(query) > 200:
-            return "Pedido muito longo (máximo 200 caracteres)."
+            return self.reply("sr_long")
         async with self.lock:
             try:
                 self.policy.check_user(user)
                 if self.queue.count() >= self.policy.config.max_pending:
-                    raise RequestRejected("Fila cheia. Tente mais tarde.")
+                    raise RequestRejected("queue_full")
                 track = await self.spotify.search(query.strip())
                 if track is None:
-                    return "Nenhuma música encontrada."
+                    return self.reply("sr_empty")
                 self.policy.check_track(track)
                 if self.queue.duplicate(track.uri):
-                    raise RequestRejected("Esta música já está aguardando envio.")
+                    raise RequestRejected("sr_duplicate")
                 request_id = self.queue.add(user.name, track)
                 self.policy.consume(user)
-                return f"Pedido #{request_id} recebido: {track.label}."
+                return self.reply("sr_received", request_id=request_id, label=track.label)
             except (RequestRejected, SpotifyError, OAuthError) as error:
-                return str(error)
+                return error_message(self.language, error)
 
     async def dispatch_once(self):
         row = self.queue.next()

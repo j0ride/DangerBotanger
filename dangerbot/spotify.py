@@ -2,6 +2,7 @@ from dataclasses import dataclass
 from json import JSONDecodeError
 import httpx
 from .oauth import OAuth
+from .i18n import translate
 
 
 class SpotifyError(Exception):
@@ -79,10 +80,10 @@ class Spotify:
         await self.request("POST", "me/player/next", expect_json=False, params=params)
 
     @staticmethod
-    def item_label(item):
+    def item_label(item, language="br"):
         if not isinstance(item, dict):
             raise SpotifyError("Spotify retornou um item inválido.")
-        name = item.get("name") or "Item indisponível"
+        name = item.get("name") or translate(language, "item_unavailable")
         artists = item.get("artists") or []
         names = [artist.get("name", "") for artist in artists if isinstance(artist, dict)]
         if not names and isinstance(item.get("show"), dict):

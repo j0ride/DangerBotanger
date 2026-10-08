@@ -95,7 +95,7 @@ class Twitch:
                         message = parse_message(line)
                         if message and message[0].lower() == "#" + self.config.channel:
                             _, user, text = message
-                            if user.name != self.config.bot_name and text.split(" ", 1)[0].lower() in {"!sr", "!queue", "!np", "!skip", "!remove"}:
+                            if user.name != self.config.bot_name and text.split(" ", 1)[0].lower() in {"!sr", "!queue", "!np", "!skip", "!remove", "!setlang"}:
                                 if not inbox.full():
                                     inbox.put_nowait((user, text))
                     if time.monotonic() - validation_at >= 3600:
