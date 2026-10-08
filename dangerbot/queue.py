@@ -1,4 +1,6 @@
 import sqlite3
+import time
+from collections import Counter
 from pathlib import Path
 
 
@@ -15,6 +17,11 @@ class RequestQueue:
             created_at TEXT DEFAULT CURRENT_TIMESTAMP)""")
         # A crash during POST cannot safely be retried (Spotify has no idempotency key).
         self.db.execute("UPDATE requests SET status='uncertain' WHERE status='sending'")
+        self.db.commit()
+        columns = {row["name"] for row in self.db.execute("PRAGMA table_info(requests)")}
+        for name, definition in [("sent_at", "REAL"), ("observed", "INTEGER NOT NULL DEFAULT 0")]:
+            if name not in columns:
+                self.db.execute(f"ALTER TABLE requests ADD COLUMN {name} {definition}")
         self.db.commit()
         self.db.execute("CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT NOT NULL)")
         self.db.commit()
@@ -55,7 +62,41 @@ class RequestQueue:
 
     def update(self, request_id, status):
         with self.db:
-            self.db.execute("UPDATE requests SET status=? WHERE id=?", (status, request_id))
+            self.db.execute(
+                "UPDATE requests SET status=?, sent_at=CASE WHEN ?='sent' THEN ? ELSE sent_at END WHERE id=?",
+                (status, status, time.time(), request_id))
+
+    def user_slots(self, user, spotify_items, now=None, current_item=None):
+        """Attribute Spotify URI occurrences to stored requests, plus in-flight reservations.
+
+        Spotify exposes no requester IDs. Attribution relies on the queue snapshot;
+        manual additions of the same URI cannot be distinguished from bot additions.
+        """
+        now = time.time() if now is None else now
+        remaining = Counter(item.get("uri") for item in spotify_items
+                            if isinstance(item, dict) and item.get("uri"))
+        rows = self.db.execute(
+            "SELECT * FROM requests WHERE status IN ('sent','uncertain') ORDER BY id").fetchall()
+        current_uri = current_item.get("uri") if isinstance(current_item, dict) else None
+        current_matched = False
+        with self.db:
+            for row in rows:
+                if not current_matched and row["uri"] == current_uri:
+                    current_matched = True
+                    self.db.execute("UPDATE requests SET status='completed' WHERE id=?", (row["id"],))
+                elif remaining[row["uri"]] > 0:
+                    remaining[row["uri"]] -= 1
+                    self.db.execute("UPDATE requests SET observed=1, status='sent' WHERE id=?", (row["id"],))
+                elif row["status"] == "sent":
+                    # Allow Spotify time to expose a just-delivered request.
+                    recent = row["sent_at"] is not None and now - row["sent_at"] < 60
+                    # A long snapshot may omit its tail. Keep unknown requests
+                    # reserved rather than treating omitted items as played.
+                    if len(spotify_items) < 20 and (row["observed"] or not recent):
+                        self.db.execute("UPDATE requests SET status='completed' WHERE id=?", (row["id"],))
+        return self.db.execute(
+            "SELECT COUNT(*) FROM requests WHERE user=? COLLATE NOCASE "
+            "AND status IN ('pending','sending','sent','uncertain')", (user,)).fetchone()[0]
 
     def close(self):
         self.db.close()

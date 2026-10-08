@@ -99,7 +99,10 @@ class Spotify:
         return data
 
     async def playback_queue(self):
+        return (await self.queue_snapshot())["queue"]
+
+    async def queue_snapshot(self):
         data = await self.request("GET", "me/player/queue")
         if not isinstance(data, dict) or not isinstance(data.get("queue"), list):
             raise SpotifyError("Spotify retornou uma fila inválida.")
-        return data["queue"]
+        return data

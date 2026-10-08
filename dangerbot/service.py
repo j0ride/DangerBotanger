@@ -34,6 +34,8 @@ class Policy:
                      "broadcaster": "broadcaster" in user.roles}
         if not permitted[c.permission]:
             raise RequestRejected("request_permission")
+        if "broadcaster" in user.roles:
+            return
         remaining = max(self.global_until, self.users.get(user.name, 0)) - self.clock()
         if remaining > 0:
             raise RequestRejected("request_cooldown", seconds=math.ceil(remaining))
@@ -50,6 +52,8 @@ class Policy:
             raise RequestRejected("duration")
 
     def consume(self, user):
+        if "broadcaster" in user.roles:
+            return
         now = self.clock()
         self.users = {key: expiry for key, expiry in self.users.items() if expiry > now}
         self.users[user.name] = now + self.config.user_cooldown
@@ -149,6 +153,11 @@ class SongRequests:
                 self.policy.check_track(track)
                 if self.queue.duplicate(track.uri):
                     raise RequestRejected("sr_duplicate")
+                snapshot = await self.spotify.queue_snapshot()
+                slots = self.queue.user_slots(user.name, snapshot["queue"],
+                                              current_item=snapshot.get("currently_playing"))
+                if slots >= self.policy.config.max_user_requests:
+                    raise RequestRejected("user_queue_limit", limit=self.policy.config.max_user_requests)
                 self.queue.add(user.name, track)
                 self.policy.consume(user)
                 return self.reply("sr_received", name=track.name)

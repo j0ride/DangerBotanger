@@ -45,7 +45,8 @@ A [fila do Spotify](https://developer.spotify.com/documentation/web-api/referenc
 
 ## Regras
 
-- `USER_COOLDOWN` e `GLOBAL_COOLDOWN`: segundos, consumidos apenas após aceitar o pedido.
+- `USER_COOLDOWN`: 30 segundos por padrão entre pedidos aceitos. `GLOBAL_COOLDOWN`: 5 segundos por padrão entre pedidos do canal. O broadcaster ignora ambos e seus pedidos não iniciam cooldown global; moderadores seguem os intervalos.
+- `MAX_USER_REQUESTS`: 10 pedidos simultâneos por pessoa, incluindo broadcaster. O bot consulta a fila Spotify a cada pedido e associa suas URIs aos solicitantes salvos no SQLite. Músicas que começam a tocar deixam de ocupar uma vaga. Envios pendentes/em andamento e entregas incertas reservam vagas para impedir ultrapassar 10 durante o envio.
 - `REQUEST_PERMISSION`: everyone, subscriber, moderator ou broadcaster. Moderadores e broadcaster também passam pela regra subscriber.
 - `BLACKLIST_USERS`: logins separados por vírgulas.
 - `BLACKLIST_TRACKS`: IDs ou URIs Spotify separados por vírgulas.
@@ -53,6 +54,8 @@ A [fila do Spotify](https://developer.spotify.com/documentation/web-api/referenc
 - `ALLOW_EXPLICIT`, `MAX_DURATION_SECONDS` e `MAX_PENDING_REQUESTS` limitam os pedidos.
 
 Duplicatas são bloqueadas enquanto aguardam envio. As regras são carregadas na inicialização; reinicie após editar o `.env`. Cooldowns ficam em memória e reiniciam junto com o processo.
+
+O limite por usuário usa a fila real, além das reservas de envio; MAX_PENDING_REQUESTS continua sendo um limite separado da outbox local. A atribuição de pedidos sobrevive aos reinícios. O Spotify não fornece solicitantes nem IDs de ocorrências: adições manuais da mesma música são ambíguas. A contagem depende da visão da fila retornada pela API. Em snapshots com 20 ou mais itens, pedidos ausentes continuam reservados por precaução, pois podem estar na parte omitida. Em filas menores, pedidos confirmados como ausentes liberam vagas; um envio recente ainda não observado tem 60 segundos de tolerância. Entregas incertas sem confirmação permanecem reservadas até revisão manual ou identificação na fila. Consultas que falham impedem novos pedidos.
 
 ## Arquitetura e limites
 

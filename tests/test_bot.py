@@ -15,10 +15,10 @@ from dangerbot.twitch import parse_message
 
 def config(**overrides):
     return SimpleNamespace(**{
-        "user_cooldown": 60, "global_cooldown": 5, "permission": "everyone",
+        "user_cooldown": 30, "global_cooldown": 5, "permission": "everyone",
         "blocked_users": frozenset(), "blocked_tracks": frozenset(),
         "blocked_artists": frozenset(), "allow_explicit": True,
-        "max_duration": 600, "max_pending": 30, **overrides})
+        "max_duration": 600, "max_pending": 30, "max_user_requests": 10, **overrides})
 
 
 TRACK = Track("track1", "spotify:track:track1", "Song", ("Artist",), ("artist1",), 180000, False)
@@ -55,6 +55,12 @@ class FakeSpotify:
             raise self.error
         return self.spotify_queue
 
+    async def queue_snapshot(self):
+        if self.error:
+            raise self.error
+        current = self.playback_data.get("item") if self.playback_data else None
+        return {"queue": self.spotify_queue, "currently_playing": current}
+
 
 class BotTests(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self):
@@ -62,6 +68,90 @@ class BotTests(unittest.IsolatedAsyncioTestCase):
 
     async def asyncTearDown(self):
         self.queue.close()
+
+    def sent_requests(self, user, count):
+        from dataclasses import replace
+        items = []
+        for index in range(count):
+            track = replace(TRACK, id=f"sent{index}", uri=f"spotify:track:sent{index}")
+            request_id = self.queue.add(user, track)
+            self.queue.update(request_id, "sent")
+            items.append({"uri": track.uri})
+        return items
+
+    async def test_ten_spotify_requests_block_viewer_and_broadcaster(self):
+        for user in [User("viewer"), User("viewer", frozenset({"broadcaster"}))]:
+            self.queue.db.execute("DELETE FROM requests")
+            spotify = FakeSpotify()
+            spotify.spotify_queue = self.sent_requests(user.name, 10)
+            service = SongRequests(spotify, self.queue, Policy(config()))
+            self.assertEqual(self.queue.count(), 0)
+            self.assertIn("10 pedidos", await service.handle(user, "!sr song"))
+            self.assertEqual(self.queue.count(), 0)
+            # A confirmed departure opens one slot.
+            spotify.spotify_queue.pop(0)
+            self.assertIn("adicionada", await service.handle(user, "!sr song"))
+            self.assertEqual(self.queue.count(), 1)
+
+    async def test_broadcaster_bypasses_user_and_global_request_cooldowns(self):
+        from dataclasses import replace
+        now = [100]
+        spotify = FakeSpotify()
+        policy = Policy(config(), clock=lambda: now[0])
+        service = SongRequests(spotify, self.queue, policy)
+        async def unique_search(query):
+            return replace(TRACK, id=query, uri="spotify:track:" + query)
+        spotify.search = unique_search
+        self.assertIn("adicionada", await service.handle(User("viewer"), "!sr viewer-song"))
+        owner = User("owner", frozenset({"broadcaster"}))
+        for index in range(10):
+            self.assertIn("adicionada", await service.handle(owner, f"!sr owner-song-{index}"))
+        self.assertIn("10 pedidos", await service.handle(owner, "!sr eleventh"))
+        self.assertEqual(policy.global_until, 105)
+        self.assertNotIn("owner", policy.users)
+        self.assertIn("Aguarde", await service.handle(User("mod", frozenset({"moderator"})), "!sr mod-song"))
+        now[0] = 129
+        self.assertIn("Aguarde 1s", await service.handle(User("viewer"), "!sr next"))
+        now[0] = 130
+        self.assertIn("adicionada", await service.handle(User("viewer"), "!sr next"))
+
+    async def test_user_slots_do_not_count_other_users_or_manual_songs(self):
+        items = self.sent_requests("other", 10)
+        items.append({"uri": "spotify:track:manual"})
+        self.assertEqual(self.queue.user_slots("viewer", items), 0)
+        self.assertEqual(self.queue.user_slots("OTHER", items), 10)
+
+    async def test_currently_playing_is_not_counted_as_waiting(self):
+        items = self.sent_requests("viewer", 10)
+        current = items.pop(0)
+        self.assertEqual(self.queue.user_slots("viewer", items, current_item=current), 9)
+
+    async def test_delayed_visibility_and_uncertain_delivery_keep_reservations(self):
+        import time
+        request_id = self.queue.add("viewer", TRACK)
+        self.queue.update(request_id, "sent")
+        self.assertEqual(self.queue.user_slots("viewer", []), 1)
+        self.assertEqual(self.queue.user_slots("viewer", [], now=time.time() + 61), 0)
+        request_id = self.queue.add("viewer", TRACK)
+        self.queue.update(request_id, "uncertain")
+        self.assertEqual(self.queue.user_slots("viewer", []), 1)
+        self.assertEqual(self.queue.user_slots("viewer", [{"uri": TRACK.uri}]), 1)
+        self.assertEqual(self.queue.user_slots("viewer", []), 0)
+
+    async def test_long_snapshot_does_not_release_missing_tail_requests(self):
+        import time
+        self.sent_requests("viewer", 10)
+        unrelated = [{"uri": f"spotify:track:manual{i}"} for i in range(20)]
+        self.assertEqual(self.queue.user_slots("viewer", unrelated, now=time.time() + 61), 10)
+
+    async def test_queue_lookup_failure_does_not_accept_request(self):
+        from unittest.mock import AsyncMock
+        spotify = FakeSpotify()
+        spotify.queue_snapshot = AsyncMock(side_effect=SpotifyError("Spotify indisponível."))
+        service = SongRequests(spotify, self.queue, Policy(config()))
+        self.assertIn("indisponível", await service.handle(User("viewer"), "!sr song"))
+        self.assertEqual(self.queue.count(), 0)
+        self.assertEqual(service.policy.users, {})
 
     async def test_setlang_permissions_invalid_input_and_switch_back(self):
         service = SongRequests(FakeSpotify(), self.queue, Policy(config()))
@@ -92,7 +182,7 @@ class BotTests(unittest.IsolatedAsyncioTestCase):
                                         "is_playing": True}
         self.assertIn("Now playing: Música original - Artista", await service.handle(viewer, "!np"))
         self.assertEqual("Song added to the queue.", await service.handle(viewer, "!sr song"))
-        self.assertIn("Wait 60s", await service.handle(viewer, "!sr song"))
+        self.assertIn("Wait 30s", await service.handle(viewer, "!sr song"))
         service.policy.config.blocked_users = frozenset({"blocked"})
         self.assertIn("blocked", await service.handle(User("blocked"), "!sr song"))
 
@@ -313,6 +403,17 @@ class BotTests(unittest.IsolatedAsyncioTestCase):
 
 
 class PersistenceTests(unittest.TestCase):
+    def test_spotify_request_ownership_survives_restart(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "queue.sqlite3"
+            queue = RequestQueue(path)
+            request_id = queue.add("viewer", TRACK)
+            queue.update(request_id, "sent")
+            queue.close()
+            queue = RequestQueue(path)
+            self.assertEqual(queue.user_slots("viewer", [{"uri": TRACK.uri}]), 1)
+            self.assertEqual(queue.user_slots("other", [{"uri": TRACK.uri}]), 0)
+            queue.close()
     def test_language_survives_restart_without_losing_requests(self):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "queue.sqlite3"
