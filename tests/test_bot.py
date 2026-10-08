@@ -144,6 +144,27 @@ class BotTests(unittest.IsolatedAsyncioTestCase):
         unrelated = [{"uri": f"spotify:track:manual{i}"} for i in range(20)]
         self.assertEqual(self.queue.user_slots("viewer", unrelated, now=time.time() + 61), 10)
 
+    async def test_legacy_requests_do_not_fill_broadcaster_limit_with_autoplay(self):
+        self.sent_requests("owner", 10)
+        self.queue.db.execute("UPDATE requests SET sent_at=NULL, observed=0")
+        self.queue.db.execute("UPDATE requests SET status='uncertain' WHERE id=1")
+        spotify = FakeSpotify()
+        spotify.spotify_queue = [{"uri": f"spotify:track:autoplay{i}"} for i in range(20)]
+        service = SongRequests(spotify, self.queue, Policy(config()))
+        owner = User("owner", frozenset({"broadcaster"}))
+        self.assertIn("adicionada", await service.handle(owner, "!sr song"))
+        self.assertEqual(self.queue.db.execute(
+            "SELECT COUNT(*) FROM requests WHERE status='completed'").fetchone()[0], 10)
+
+    async def test_legacy_requests_still_in_spotify_queue_still_count(self):
+        items = self.sent_requests("owner", 10)
+        self.queue.db.execute("UPDATE requests SET sent_at=NULL, observed=0")
+        spotify = FakeSpotify()
+        spotify.spotify_queue = items + [{"uri": f"spotify:track:autoplay{i}"} for i in range(20)]
+        service = SongRequests(spotify, self.queue, Policy(config()))
+        self.assertIn("10 pedidos", await service.handle(
+            User("owner", frozenset({"broadcaster"})), "!sr song"))
+
     async def test_queue_lookup_failure_does_not_accept_request(self):
         from unittest.mock import AsyncMock
         spotify = FakeSpotify()

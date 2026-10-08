@@ -63,7 +63,7 @@ class RequestQueue:
     def update(self, request_id, status):
         with self.db:
             self.db.execute(
-                "UPDATE requests SET status=?, sent_at=CASE WHEN ?='sent' THEN ? ELSE sent_at END WHERE id=?",
+                "UPDATE requests SET status=?, sent_at=CASE WHEN ? IN ('sending','sent','uncertain') THEN ? ELSE sent_at END WHERE id=?",
                 (status, status, time.time(), request_id))
 
     def user_slots(self, user, spotify_items, now=None, current_item=None):
@@ -87,6 +87,11 @@ class RequestQueue:
                 elif remaining[row["uri"]] > 0:
                     remaining[row["uri"]] -= 1
                     self.db.execute("UPDATE requests SET observed=1, status='sent' WHERE id=?", (row["id"],))
+                elif row["sent_at"] is None:
+                    # Legacy records have no evidence of a recent delivery.
+                    # Autoplay can produce long snapshots; that must not keep
+                    # historical requests reserved forever.
+                    self.db.execute("UPDATE requests SET status='completed' WHERE id=?", (row["id"],))
                 elif row["status"] == "sent":
                     # Allow Spotify time to expose a just-delivered request.
                     recent = row["sent_at"] is not None and now - row["sent_at"] < 60

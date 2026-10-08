@@ -57,6 +57,8 @@ Duplicatas são bloqueadas enquanto aguardam envio. As regras são carregadas na
 
 O limite por usuário usa a fila real, além das reservas de envio; MAX_PENDING_REQUESTS continua sendo um limite separado da outbox local. A atribuição de pedidos sobrevive aos reinícios. O Spotify não fornece solicitantes nem IDs de ocorrências: adições manuais da mesma música são ambíguas. A contagem depende da visão da fila retornada pela API. Em snapshots com 20 ou mais itens, pedidos ausentes continuam reservados por precaução, pois podem estar na parte omitida. Em filas menores, pedidos confirmados como ausentes liberam vagas; um envio recente ainda não observado tem 60 segundos de tolerância. Entregas incertas sem confirmação permanecem reservadas até revisão manual ou identificação na fila. Consultas que falham impedem novos pedidos.
 
+Registros antigos, anteriores ao controle de vagas e sem timestamp de envio, só contam se encontrados na fila atual. Se ausentes, são encerrados mesmo quando o Spotify retorna uma lista longa de autoplay. O histórico é preservado. Músicas automáticas sem um pedido correspondente nunca são atribuídas ao broadcaster apenas por ele ser dono da conta Spotify.
+
 ## Arquitetura e limites
 
 `config.py` carrega regras; `oauth.py` autoriza e renova tokens; `spotify.py` encapsula a Web API; `queue.py` mantém a fila SQLite; `service.py` aplica políticas e despacha pedidos; `twitch.py` conecta via IRC TLS, identifica cargos, responde a PING e reconecta.
