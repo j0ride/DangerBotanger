@@ -18,6 +18,8 @@ A Web API documentada oferece consulta e adição à fila, mas não remoção de
 
 ## Preparação
 
+No Windows, com o ambiente e as credenciais configurados, dê dois cliques em `iniciar-bot.bat` para abrir o PowerShell e iniciar o bot sem a IDE. O lançador usa o Python da pasta .venv e define a pasta do projeto como diretório de trabalho. A janela permanece aberta se ocorrer um erro. Para parar o bot, pressione Ctrl+C; para fechar o PowerShell, digite exit. É possível criar um atalho para o .bat na área de trabalho. Execute somente uma instância por vez.
+
 Python 3.11+:
 
 ```powershell
