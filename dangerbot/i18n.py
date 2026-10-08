@@ -118,8 +118,8 @@ MESSAGES = {
         "en": "This song is already waiting to be sent."
     },
     "sr_received": {
-        "br": "Pedido #{request_id} recebido: {label}.",
-        "en": "Request #{request_id} received: {label}."
+        "br": "{name} adicionada à fila.",
+        "en": "{name} added to the queue."
     },
     "spotify_network": {
         "br": "Falha de rede no Spotify.",

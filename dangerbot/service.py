@@ -149,9 +149,9 @@ class SongRequests:
                 self.policy.check_track(track)
                 if self.queue.duplicate(track.uri):
                     raise RequestRejected("sr_duplicate")
-                request_id = self.queue.add(user.name, track)
+                self.queue.add(user.name, track)
                 self.policy.consume(user)
-                return self.reply("sr_received", request_id=request_id, label=track.label)
+                return self.reply("sr_received", name=track.name)
             except (RequestRejected, SpotifyError, OAuthError) as error:
                 return error_message(self.language, error)
 
