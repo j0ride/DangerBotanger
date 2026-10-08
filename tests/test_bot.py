@@ -202,7 +202,7 @@ class BotTests(unittest.IsolatedAsyncioTestCase):
         service.spotify.playback_data = {"item": {"name": "Música original", "artists": [{"name": "Artista"}]},
                                         "is_playing": True}
         self.assertIn("Now playing: Música original - Artista", await service.handle(viewer, "!np"))
-        self.assertEqual("Song added to the queue.", await service.handle(viewer, "!sr song"))
+        self.assertEqual("Song - Artist added to the queue.", await service.handle(viewer, "!sr song"))
         self.assertIn("Wait 30s", await service.handle(viewer, "!sr song"))
         service.policy.config.blocked_users = frozenset({"blocked"})
         self.assertIn("blocked", await service.handle(User("blocked"), "!sr song"))
@@ -320,7 +320,7 @@ class BotTests(unittest.IsolatedAsyncioTestCase):
     async def test_request_dispatch_and_cooldown(self):
         spotify = FakeSpotify()
         service = SongRequests(spotify, self.queue, Policy(config(), clock=lambda: 100))
-        self.assertEqual("Song adicionada à fila.", await service.handle(User("viewer"), "!sr song"))
+        self.assertEqual("Song - Artist adicionada à fila.", await service.handle(User("viewer"), "!sr song"))
         self.assertIn("Aguarde", await service.handle(User("viewer"), "!sr song"))
         await service.dispatch_once()
         self.assertEqual(spotify.sent, [TRACK.uri])

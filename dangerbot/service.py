@@ -160,7 +160,7 @@ class SongRequests:
                     raise RequestRejected("user_queue_limit", limit=self.policy.config.max_user_requests)
                 self.queue.add(user.name, track)
                 self.policy.consume(user)
-                return self.reply("sr_received", name=track.name)
+                return self.reply("sr_received", name=track.name, artists=", ".join(track.artists))
             except (RequestRejected, SpotifyError, OAuthError) as error:
                 return error_message(self.language, error)
 
