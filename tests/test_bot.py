@@ -85,7 +85,6 @@ class BotTests(unittest.IsolatedAsyncioTestCase):
         viewer = User("viewer")
         self.assertIn("Nothing", await service.handle(viewer, "!np"))
         self.assertIn("queue is empty", await service.handle(viewer, "!queue"))
-        self.assertIn("cannot remove", await service.handle(viewer, "!remove"))
         self.assertIn("Only moderators", await service.handle(viewer, "!skip"))
         self.assertIn("skipped", await service.handle(owner, "!skip"))
         self.assertIn("Wait 5s", await service.handle(owner, "!skip"))
@@ -133,14 +132,6 @@ class BotTests(unittest.IsolatedAsyncioTestCase):
             service = SongRequests(FakeSpotify(error), self.queue, Policy(config()))
             reply = await service.handle(User("owner", frozenset({"broadcaster"})), "!skip")
             self.assertIn(expected, reply)
-
-    async def test_remove_reports_spotify_limitation_without_changing_local_queue(self):
-        service = SongRequests(FakeSpotify(), self.queue, Policy(config()))
-        request_id = self.queue.add("viewer", TRACK)
-        for user in [User("viewer"), User("mod", frozenset({"moderator"}))]:
-            self.assertIn("não permite remover", await service.handle(user, "!remove 1"))
-            self.assertEqual(self.queue.get(request_id)["status"], "pending")
-        self.assertEqual(service.spotify.skips, 0)
 
     async def test_queue_reads_spotify_instead_of_local_outbox_and_paginates(self):
         service = SongRequests(FakeSpotify(), self.queue, Policy(config()))

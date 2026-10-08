@@ -132,8 +132,6 @@ class SongRequests:
                 except OAuthError as error:
                     return error_message(self.language, error)
                 return self.reply("skip_success")
-        if command.lower() == "!remove":
-            return self.reply("remove_unavailable")
         if command.lower() != "!sr":
             return None
         if not query.strip():

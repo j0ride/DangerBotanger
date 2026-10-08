@@ -53,12 +53,6 @@ class RequestQueue:
         return self.db.execute(
             "SELECT * FROM requests WHERE status='pending' ORDER BY id LIMIT ?", (limit,)).fetchall()
 
-    def remove(self, request_id):
-        with self.db:
-            cursor = self.db.execute(
-                "UPDATE requests SET status='removed' WHERE id=? AND status='pending'", (request_id,))
-        return cursor.rowcount == 1
-
     def update(self, request_id, status):
         with self.db:
             self.db.execute("UPDATE requests SET status=? WHERE id=?", (status, request_id))

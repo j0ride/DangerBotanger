@@ -97,10 +97,6 @@ MESSAGES = {
         "br": "Música pulada.",
         "en": "Song skipped."
     },
-    "remove_unavailable": {
-        "br": "A API do Spotify não permite remover músicas da fila. Remova pelo aplicativo Spotify; !skip pula a música atual.",
-        "en": "The Spotify API cannot remove songs from the queue. Remove them in the Spotify app; !skip skips the current song."
-    },
     "sr_usage": {
         "br": "Uso: !sr <música e artista>",
         "en": "Usage: !sr <song and artist>"
