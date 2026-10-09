@@ -7,12 +7,14 @@ Comandos no chat:
 | Comando | Ação | Permissão |
 | --- | --- | --- |
 | `!sr <música e artista>` | Solicita música | Configurada em REQUEST_PERMISSION |
-| `!np` | Mostra música e artista atuais; informa se está pausado | Todos |
+| `!np` | Mostra música, artista e quem pediu via !sr, quando identificado; informa se está pausado | Todos |
 | `!queue [página]` | Mostra a fila real do Spotify, 5 itens por página | Todos |
 | `!skip` | Pula a música atual no Spotify | Moderadores e dono do canal |
 | `!setlang br` / `!setlang en` | Define português brasileiro ou inglês para as respostas no chat | Moderadores e dono do canal |
 
 O idioma padrão é `br`. A escolha de `!setlang` vale para todo o canal, muda imediatamente e fica salva em data/queue.sqlite3 para os próximos reinícios. Nomes de músicas e artistas não são traduzidos. Os comandos continuam com os mesmos nomes nos dois idiomas. Logs de terminal e instruções de configuração permanecem em português.
+
+O bot acompanha a reprodução a cada 10 segundos e ao consultar !np. A associação entre uma reprodução e um pedido fica salva no SQLite; consultas repetidas não consomem pedidos repetidos da mesma música. Exemplo: `Tocando agora: Song - Artist. Pedida por @viewer.` Uma música sem pedido ativo identificado é exibida sem solicitante. Pedidos que começam a tocar liberam uma vaga do limite por usuário. O Spotify não fornece IDs de ocorrências: adições manuais da mesma faixa, repetições não observadas enquanto o bot está desligado e retrocessos de mais de 5 segundos podem tornar a atribuição ambígua. A associação é feita pelo histórico e pelas mudanças observadas de URI/progresso/dispositivo, não por autoria fornecida pelo Spotify.
 
 Exemplo: `!queue 2` mostra os itens 6 a 10 da fila retornada pela API. As posições mudam conforme a reprodução avança e não são IDs dos pedidos locais. A fila consultada pode incluir músicas da playlist/contexto de reprodução, além dos pedidos do bot. A API retorna uma visão da fila, que pode não incluir todos os itens mostrados pelo aplicativo. As consultas refletem a conta Spotify autorizada; SPOTIFY_DEVICE_ID direciona operações de escrita, não as consultas de reprodução e fila.
 

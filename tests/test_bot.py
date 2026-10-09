@@ -69,6 +69,54 @@ class BotTests(unittest.IsolatedAsyncioTestCase):
     async def asyncTearDown(self):
         self.queue.close()
 
+    async def test_np_reports_requester_in_both_languages_and_when_paused(self):
+        self.sent_requests("viewer", 1)
+        spotify = FakeSpotify()
+        spotify.playback_data = {"item": {"uri": "spotify:track:sent0", "name": "Song",
+                                          "artists": [{"name": "Artist"}]},
+                                 "progress_ms": 0, "is_playing": True}
+        service = SongRequests(spotify, self.queue, Policy(config()))
+        self.assertIn("Pedida por @viewer.", await service.handle(User("other"), "!np"))
+        self.assertIn("Pedida por @viewer.", await service.handle(User("other"), "!np"))
+        spotify.playback_data["is_playing"] = False
+        await service.handle(User("owner", frozenset({"broadcaster"})), "!setlang en")
+        reply = await service.handle(User("other"), "!np")
+        self.assertIn("Spotify paused", reply)
+        self.assertIn("Requested by @viewer.", reply)
+
+    async def test_np_does_not_credit_autoplay_or_completed_history(self):
+        request_id = self.queue.add("viewer", TRACK)
+        self.queue.update(request_id, "completed")
+        spotify = FakeSpotify()
+        spotify.playback_data = {"item": {"uri": TRACK.uri, "name": "Song"},
+                                 "progress_ms": 0, "is_playing": True}
+        service = SongRequests(spotify, self.queue, Policy(config()))
+        self.assertNotIn("Pedida por", await service.handle(User("other"), "!np"))
+
+    async def test_current_song_future_request_is_not_assigned_to_autoplay(self):
+        import time
+        request_id = self.queue.add("viewer", TRACK)
+        self.queue.update(request_id, "sent")
+        requester = self.queue.track_playback(
+            {"item": {"uri": TRACK.uri}, "progress_ms": 120000}, now=time.time())
+        self.assertIsNone(requester)
+        self.assertEqual(self.queue.get(request_id)["status"], "sent")
+
+    async def test_same_song_requests_are_consumed_once_per_playback(self):
+        import time
+        first = self.queue.add("first", TRACK)
+        second = self.queue.add("second", TRACK)
+        self.queue.update(first, "sent")
+        self.queue.update(second, "sent")
+        now = time.time() + 20
+        item = {"uri": TRACK.uri}
+        self.assertEqual(self.queue.track_playback({"item": item, "progress_ms": 0}, now=now), "first")
+        self.assertEqual(self.queue.track_playback({"item": item, "progress_ms": 10000}, now=now + 10), "first")
+        self.queue.user_slots("first", [{"uri": TRACK.uri}], current_item=item)
+        self.assertEqual(self.queue.get(second)["status"], "sent")
+        self.assertEqual(self.queue.track_playback({"item": item, "progress_ms": 0}, now=now + 180), "second")
+        self.assertEqual(self.queue.get(first)["status"], "completed")
+
     def sent_requests(self, user, count):
         from dataclasses import replace
         items = []
@@ -424,6 +472,20 @@ class BotTests(unittest.IsolatedAsyncioTestCase):
 
 
 class PersistenceTests(unittest.TestCase):
+    def test_playback_requester_survives_restart(self):
+        import time
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "queue.sqlite3"
+            queue = RequestQueue(path)
+            request_id = queue.add("viewer", TRACK)
+            queue.update(request_id, "sent")
+            playback = {"item": {"uri": TRACK.uri}, "progress_ms": 0}
+            self.assertEqual(queue.track_playback(playback), "viewer")
+            queue.close()
+            queue = RequestQueue(path)
+            self.assertEqual(queue.track_playback(playback), "viewer")
+            self.assertEqual(queue.get(request_id)["status"], "playing")
+            queue.close()
     def test_spotify_request_ownership_survives_restart(self):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "queue.sqlite3"

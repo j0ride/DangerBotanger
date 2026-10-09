@@ -24,6 +24,7 @@ async def run():
             await twitch.validate()
             async with asyncio.TaskGroup() as tasks:
                 tasks.create_task(service.worker())
+                tasks.create_task(service.monitor_playback())
                 tasks.create_task(twitch.run())
         finally:
             queue.close()

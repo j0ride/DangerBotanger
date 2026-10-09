@@ -1,6 +1,10 @@
 """Chat response catalog. Music metadata is never translated."""
 
 MESSAGES = {
+    "np_requester": {
+        "br": "Pedida por @{user}.",
+        "en": "Requested by @{user}."
+    },
     "user_queue_limit": {
         "br": "Você já tem {limit} pedidos na fila do Spotify ou em envio. Aguarde uma música sair da fila.",
         "en": "You already have {limit} requests in the Spotify queue or being sent. Wait for a song to leave the queue."

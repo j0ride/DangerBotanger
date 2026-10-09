@@ -90,11 +90,15 @@ class SongRequests:
                 return self.reply("np_usage")
             try:
                 playback = await self.spotify.playback()
+                requester = self.queue.track_playback(playback)
                 if not playback or not playback.get("item"):
                     return self.reply("np_empty")
                 label = Spotify.item_label(playback["item"], self.language)
                 key = "np_playing" if playback.get("is_playing") else "np_paused"
-                return self.reply(key, label=label[:220])
+                response = self.reply(key, label=label[:220])
+                if requester:
+                    response += " " + self.reply("np_requester", user=requester)
+                return response
             except (SpotifyError, OAuthError) as error:
                 return error_message(self.language, error)
         if command.lower() == "!queue":
@@ -154,8 +158,10 @@ class SongRequests:
                 if self.queue.duplicate(track.uri):
                     raise RequestRejected("sr_duplicate")
                 snapshot = await self.spotify.queue_snapshot()
+                playback = await self.spotify.playback()
+                self.queue.track_playback(playback)
                 slots = self.queue.user_slots(user.name, snapshot["queue"],
-                                              current_item=snapshot.get("currently_playing"))
+                                              current_item=playback.get("item") if playback else None)
                 if slots >= self.policy.config.max_user_requests:
                     raise RequestRejected("user_queue_limit", limit=self.policy.config.max_user_requests)
                 self.queue.add(user.name, track)
@@ -185,4 +191,15 @@ class SongRequests:
     async def worker(self):
         while True:
             delay = await self.dispatch_once()
+            await asyncio.sleep(delay)
+
+    async def monitor_playback(self):
+        while True:
+            try:
+                self.queue.track_playback(await self.spotify.playback())
+                delay = 10
+            except SpotifyError as error:
+                delay = max(10, error.retry_after)
+            except OAuthError:
+                delay = 60
             await asyncio.sleep(delay)
