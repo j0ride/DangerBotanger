@@ -158,6 +158,9 @@ class SongRequests:
                 if self.queue.duplicate(track.uri):
                     raise RequestRejected("sr_duplicate")
                 snapshot = await self.spotify.queue_snapshot()
+                if any(isinstance(item, dict) and item.get("uri") == track.uri
+                       for item in snapshot["queue"]):
+                    raise RequestRejected("sr_duplicate_spotify")
                 playback = await self.spotify.playback()
                 self.queue.track_playback(playback)
                 slots = self.queue.user_slots(user.name, snapshot["queue"],

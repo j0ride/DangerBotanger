@@ -1,6 +1,10 @@
 """Chat response catalog. Music metadata is never translated."""
 
 MESSAGES = {
+    "sr_duplicate_spotify": {
+        "br": "Esta música já está na fila de reprodução do Spotify.",
+        "en": "This song is already in the Spotify playback queue."
+    },
     "np_requester": {
         "br": "Pedida por @{user}.",
         "en": "Requested by @{user}."

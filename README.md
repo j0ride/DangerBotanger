@@ -55,7 +55,7 @@ A [fila do Spotify](https://developer.spotify.com/documentation/web-api/referenc
 - `BLACKLIST_ARTISTS`: nomes exatos ou IDs separados por vírgulas.
 - `ALLOW_EXPLICIT`, `MAX_DURATION_SECONDS` e `MAX_PENDING_REQUESTS` limitam os pedidos.
 
-Duplicatas são bloqueadas enquanto aguardam envio. As regras são carregadas na inicialização; reinicie após editar o `.env`. Cooldowns ficam em memória e reiniciam junto com o processo.
+Duplicatas são bloqueadas tanto enquanto aguardam envio quanto quando o primeiro resultado da busca já está na fila de reprodução retornada pelo Spotify. A comparação usa a URI da faixa e inclui músicas adicionadas manualmente ou pelo autoplay; o bot não escolhe outro resultado para contornar o bloqueio. Pedidos rejeitados não consomem cooldown. As regras são carregadas na inicialização; reinicie após editar o `.env`. Cooldowns ficam em memória e reiniciam junto com o processo.
 
 O limite por usuário usa a fila real, além das reservas de envio; MAX_PENDING_REQUESTS continua sendo um limite separado da outbox local. A atribuição de pedidos sobrevive aos reinícios. O Spotify não fornece solicitantes nem IDs de ocorrências: adições manuais da mesma música são ambíguas. A contagem depende da visão da fila retornada pela API. Em snapshots com 20 ou mais itens, pedidos ausentes continuam reservados por precaução, pois podem estar na parte omitida. Em filas menores, pedidos confirmados como ausentes liberam vagas; um envio recente ainda não observado tem 60 segundos de tolerância. Entregas incertas sem confirmação permanecem reservadas até revisão manual ou identificação na fila. Consultas que falham impedem novos pedidos.
 

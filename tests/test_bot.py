@@ -69,6 +69,32 @@ class BotTests(unittest.IsolatedAsyncioTestCase):
     async def asyncTearDown(self):
         self.queue.close()
 
+    async def test_first_search_result_already_in_spotify_queue_is_rejected(self):
+        from unittest.mock import AsyncMock
+        for language in ["br", "en"]:
+            spotify = FakeSpotify()
+            spotify.search = AsyncMock(return_value=TRACK)
+            spotify.spotify_queue = [{"uri": TRACK.uri}]
+            service = SongRequests(spotify, self.queue, Policy(config()))
+            service.language = language
+            expected = ("já está na fila de reprodução" if language == "br"
+                        else "already in the Spotify playback queue")
+            reply = await service.handle(User("owner", frozenset({"broadcaster"})), "!sr song")
+            self.assertIn(expected, reply)
+            spotify.search.assert_awaited_once_with("song")
+            self.assertEqual(self.queue.count(), 0)
+            self.assertEqual(service.policy.users, {})
+            self.assertEqual(service.policy.global_until, 0)
+
+    async def test_spotify_duplicate_can_be_requested_after_leaving_queue(self):
+        spotify = FakeSpotify()
+        spotify.spotify_queue = [{"uri": TRACK.uri}]
+        service = SongRequests(spotify, self.queue, Policy(config()))
+        viewer = User("viewer")
+        self.assertIn("já está", await service.handle(viewer, "!sr song"))
+        spotify.spotify_queue = [{"uri": "spotify:track:another"}]
+        self.assertIn("adicionada", await service.handle(viewer, "!sr song"))
+
     async def test_np_reports_requester_in_both_languages_and_when_paused(self):
         self.sent_requests("viewer", 1)
         spotify = FakeSpotify()
