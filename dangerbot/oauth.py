@@ -67,8 +67,8 @@ class OAuth:
             return self.tokens["access_token"]
 
 
-async def authorize(provider):
-    load_dotenv()
+async def authorize(provider, *, announce=print, show_url=True):
+    load_dotenv(interpolate=False)
     default_redirect = ("https://localhost:8888/callback" if provider == "twitch"
                         else "http://127.0.0.1:8888/callback")
     redirect = os.getenv(provider.upper() + "_REDIRECT_URI", default_redirect)
@@ -116,8 +116,10 @@ async def authorize(provider):
             if tls_context is not None:
                 server.socket = tls_context.wrap_socket(server.socket, server_side=True)
             server.timeout = 1
-            print("Abra a URL para autorizar sua conta:\n" + url)
-            webbrowser.open(url)
+            announce("Abra a URL para autorizar sua conta:\n" + url if show_url else
+                     "Abrindo o navegador. Conclua a autorização em até 3 minutos.")
+            if not webbrowser.open(url) and not show_url:
+                raise OAuthError("Não foi possível abrir o navegador. Configure um navegador padrão e tente novamente.")
             deadline = time.monotonic() + 180
             while not result and time.monotonic() < deadline:
                 await asyncio.to_thread(server.handle_request)
@@ -125,4 +127,4 @@ async def authorize(provider):
             raise OAuthError("Autorização negada ou tempo esgotado.")
         await oauth.exchange({"grant_type": "authorization_code", "code": result["code"],
                               "redirect_uri": redirect})
-        print(f"OAuth {provider} salvo em data/; tokens renovados automaticamente.")
+        announce(f"OAuth {provider} salvo em data/; tokens renovados automaticamente.")

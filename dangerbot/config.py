@@ -1,5 +1,6 @@
 import os
 import re
+import math
 from dataclasses import dataclass
 from dotenv import load_dotenv
 
@@ -22,7 +23,7 @@ class Config:
 
     @classmethod
     def load(cls):
-        load_dotenv()
+        load_dotenv(interpolate=False)
         def csv(name):
             return frozenset(x.strip().casefold() for x in os.getenv(name, "").split(",") if x.strip())
         channel = os.getenv("TWITCH_CHANNEL", "").lower().lstrip("#")
@@ -37,7 +38,7 @@ class Config:
         duration = int(os.getenv("MAX_DURATION_SECONDS", "600"))
         pending = int(os.getenv("MAX_PENDING_REQUESTS", "30"))
         max_user = int(os.getenv("MAX_USER_REQUESTS", "10"))
-        if min(user, global_) < 0 or min(duration, pending, max_user) <= 0:
+        if not all(math.isfinite(value) for value in (user, global_)) or min(user, global_) < 0 or min(duration, pending, max_user) <= 0:
             raise ValueError("Cooldowns devem ser >= 0; limites devem ser > 0.")
         explicit = os.getenv("ALLOW_EXPLICIT", "true").lower()
         if explicit not in {"true", "false"}:

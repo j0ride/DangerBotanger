@@ -31,6 +31,21 @@ A Web API documentada oferece consulta e adição à fila, mas não remoção de
 
 ## Preparação
 
+### Interface gráfica
+
+Depois de instalar as dependências (`python -m pip install -e .` no ambiente virtual), dê dois cliques em `abrir-interface.bat`. Também é possível abrir com `python main.py gui`. O lançador usa o Python da pasta `.venv` e abre a janela sem terminal. Não é necessário criar ou editar o `.env` manualmente: a interface carrega o arquivo existente ou inicia uma configuração vazia com os valores padrão.
+
+1. Na aba **Twitch**, preencha o canal da live, o login da conta do bot e as credenciais do aplicativo. O botão **Abrir painel de aplicativos** leva ao cadastro do aplicativo. Cadastre a mesma URL de callback mostrada na interface.
+2. Na aba **Spotify**, preencha as credenciais do aplicativo e cadastre sua URL de callback. O ID do dispositivo é opcional.
+3. Ajuste permissões, intervalos, limites e bloqueios na aba **Pedidos**. A aba **Avançado** contém os caminhos do certificado local.
+4. Clique em **Salvar configurações**. Os secrets ficam ocultos por padrão. Campos e opções ficam bloqueados enquanto uma operação está em andamento; pare o bot antes de alterar a configuração.
+5. Use **Autorizar Spotify** e **Autorizar Twitch**, um de cada vez. Cada botão salva os valores e abre o navegador. Para Twitch, entre com a conta do bot. Você tem 3 minutos para concluir cada autorização. O certificado HTTPS local é criado automaticamente, sem exigir OpenSSL; no aviso do navegador, prossiga somente para seu callback local configurado. Um certificado existente não é substituído.
+6. Abra o Spotify e inicie uma música, depois clique em **Iniciar bot**. A área **Atividade** mostra o andamento. **Parar / cancelar** encerra o bot ou cancela a autorização; fechar a janela também encerra a operação.
+
+A indicação **autorização salva** significa que existe um token local, não que a conexão já foi validada. Ao trocar as credenciais de um aplicativo ou a conta utilizada, autorize novamente. Configurações, tokens, certificado e fila permanecem locais; cada streamer deve configurar suas próprias contas. Ao compartilhar o projeto, não inclua `.env`, `data/` ou `.venv/`. Esta interface acompanha o projeto Python; o `.bat` exige o ambiente preparado e ainda não é um instalador independente.
+
+### Linha de comando
+
 No Windows, com o ambiente e as credenciais configurados, dê dois cliques em `iniciar-bot.bat` para abrir o PowerShell e iniciar o bot sem a IDE. O lançador usa o Python da pasta .venv e define a pasta do projeto como diretório de trabalho. A janela permanece aberta se ocorrer um erro. Para parar o bot, pressione Ctrl+C; para fechar o PowerShell, digite exit. É possível criar um atalho para o .bat na área de trabalho. Execute somente uma instância por vez.
 
 Python 3.11+:

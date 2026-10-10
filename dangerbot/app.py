@@ -36,7 +36,12 @@ def main():
     auth = sub.add_parser("auth", help="Autorizar conta e salvar refresh token")
     auth.add_argument("provider", choices=["spotify", "twitch"])
     sub.add_parser("run", help="Iniciar bot")
+    sub.add_parser("gui", help="Abrir interface de configuração e controle")
     args = parser.parse_args()
+    if args.command == "gui":
+        from .gui import main as desktop_main
+        desktop_main()
+        return
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
     logging.getLogger("httpx").setLevel(logging.WARNING)
     try:
