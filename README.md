@@ -1,18 +1,24 @@
 # DangerBotanger
 
-Bot Twitch em Python: `!sr <música e artista>` busca o primeiro resultado na Spotify Web API, aplica regras e salva o pedido na fila local. Um worker envia os pedidos em ordem à fila do Spotify. `!np` consulta a reprodução atual e `!queue` consulta a fila real do Spotify.
+Bot Twitch em Python: `!sr <música e artista>` compara até 10 resultados na Spotify Web API, aplica regras e salva o pedido na fila local. Um worker envia os pedidos em ordem à fila do Spotify. `!np` consulta a reprodução atual e `!queue` consulta a fila real do Spotify.
 
 Comandos no chat:
 
 | Comando | Ação | Permissão |
 | --- | --- | --- |
 | `!sr <música e artista>` | Solicita música | Configurada em REQUEST_PERMISSION |
-| `!np` | Mostra música, artista e quem pediu via !sr, quando identificado; informa se está pausado | Todos |
+| `!help` | Lista os comandos e indica quais são restritos a moderadores/dono | Todos |
+| `!np` / `!song` / `!currentsong` | Mostra música, artista e quem pediu via !sr, quando identificado; informa se está pausado | Todos |
 | `!queue [página]` | Mostra a fila real do Spotify, 5 itens por página | Todos |
 | `!skip` | Pula a música atual no Spotify | Moderadores e dono do canal |
+| `!volume <0-60>` | Ajusta o volume do Spotify; valores fora do intervalo são recusados | Moderadores e dono do canal |
 | `!setlang br` / `!setlang en` | Define português brasileiro ou inglês para as respostas no chat | Moderadores e dono do canal |
 
 O idioma padrão é `br`. A escolha de `!setlang` vale para todo o canal, muda imediatamente e fica salva em data/queue.sqlite3 para os próximos reinícios. Nomes de músicas e artistas não são traduzidos. Os comandos continuam com os mesmos nomes nos dois idiomas. Logs de terminal e instruções de configuração permanecem em português.
+
+A busca compara as palavras do título e do artista, aceitando ambas as ordens e ignorando diferenças de maiúsculas, acentos e pontuação. Pequenos erros de digitação em palavras longas são tolerados. Resultados sem correspondência suficiente são recusados sem ocupar a fila ou consumir cooldown. Se a música correta não estiver entre os 10 resultados retornados, refine o pedido. Isso reduz escolhas incorretas, mas não garante identificar a intenção em pedidos ambíguos ou títulos iguais de artistas diferentes; informe o artista para melhorar a precisão.
+
+Exemplo: `!volume 30` ajusta para 30%; `!volume 0` silencia; `!volume 61` é recusado. O limite de 60 vale para comandos do bot, não para alterações manuais. O comando usa o dispositivo configurado em SPOTIFY_DEVICE_ID, ou o ativo quando não configurado, e as permissões OAuth existentes. O dispositivo precisa permitir controle de volume pela API. Consulte a [referência de volume do Spotify](https://developer.spotify.com/documentation/web-api/reference/set-volume-for-users-playback).
 
 O bot acompanha a reprodução a cada 10 segundos e ao consultar !np. A associação entre uma reprodução e um pedido fica salva no SQLite; consultas repetidas não consomem pedidos repetidos da mesma música. Exemplo: `Tocando agora: Song - Artist. Pedida por @viewer.` Uma música sem pedido ativo identificado é exibida sem solicitante. Pedidos que começam a tocar liberam uma vaga do limite por usuário. O Spotify não fornece IDs de ocorrências: adições manuais da mesma faixa, repetições não observadas enquanto o bot está desligado e retrocessos de mais de 5 segundos podem tornar a atribuição ambígua. A associação é feita pelo histórico e pelas mudanças observadas de URI/progresso/dispositivo, não por autoria fornecida pelo Spotify.
 
@@ -47,7 +53,7 @@ A [fila do Spotify](https://developer.spotify.com/documentation/web-api/referenc
 
 ## Regras
 
-- `USER_COOLDOWN`: 30 segundos por padrão entre pedidos aceitos. `GLOBAL_COOLDOWN`: 5 segundos por padrão entre pedidos do canal. O broadcaster ignora ambos e seus pedidos não iniciam cooldown global; moderadores seguem os intervalos.
+- `USER_COOLDOWN`: 5 segundos por padrão entre pedidos aceitos por usuário. `GLOBAL_COOLDOWN`: 5 segundos por padrão entre pedidos do canal. O broadcaster ignora ambos e seus pedidos não iniciam cooldown global; moderadores seguem os intervalos.
 - `MAX_USER_REQUESTS`: 10 pedidos simultâneos por pessoa, incluindo broadcaster. O bot consulta a fila Spotify a cada pedido e associa suas URIs aos solicitantes salvos no SQLite. Músicas que começam a tocar deixam de ocupar uma vaga. Envios pendentes/em andamento e entregas incertas reservam vagas para impedir ultrapassar 10 durante o envio.
 - `REQUEST_PERMISSION`: everyone, subscriber, moderator ou broadcaster. Moderadores e broadcaster também passam pela regra subscriber.
 - `BLACKLIST_USERS`: logins separados por vírgulas.
@@ -55,7 +61,7 @@ A [fila do Spotify](https://developer.spotify.com/documentation/web-api/referenc
 - `BLACKLIST_ARTISTS`: nomes exatos ou IDs separados por vírgulas.
 - `ALLOW_EXPLICIT`, `MAX_DURATION_SECONDS` e `MAX_PENDING_REQUESTS` limitam os pedidos.
 
-Duplicatas são bloqueadas tanto enquanto aguardam envio quanto quando o primeiro resultado da busca já está na fila de reprodução retornada pelo Spotify. A comparação usa a URI da faixa e inclui músicas adicionadas manualmente ou pelo autoplay; o bot não escolhe outro resultado para contornar o bloqueio. Pedidos rejeitados não consomem cooldown. As regras são carregadas na inicialização; reinicie após editar o `.env`. Cooldowns ficam em memória e reiniciam junto com o processo.
+Duplicatas são bloqueadas tanto enquanto aguardam envio quanto quando o resultado selecionado pela busca já está na fila de reprodução retornada pelo Spotify. A comparação usa a URI da faixa e inclui músicas adicionadas manualmente ou pelo autoplay; o bot não escolhe outro resultado para contornar o bloqueio. Pedidos rejeitados não consomem cooldown. As regras são carregadas na inicialização; reinicie após editar o `.env`. Cooldowns ficam em memória e reiniciam junto com o processo.
 
 O limite por usuário usa a fila real, além das reservas de envio; MAX_PENDING_REQUESTS continua sendo um limite separado da outbox local. A atribuição de pedidos sobrevive aos reinícios. O Spotify não fornece solicitantes nem IDs de ocorrências: adições manuais da mesma música são ambíguas. A contagem depende da visão da fila retornada pela API. Em snapshots com 20 ou mais itens, pedidos ausentes continuam reservados por precaução, pois podem estar na parte omitida. Em filas menores, pedidos confirmados como ausentes liberam vagas; um envio recente ainda não observado tem 60 segundos de tolerância. Entregas incertas sem confirmação permanecem reservadas até revisão manual ou identificação na fila. Consultas que falham impedem novos pedidos.
 

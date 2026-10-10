@@ -8,6 +8,7 @@ from .spotify import Spotify, SpotifyError
 from .oauth import OAuthError
 from .i18n import MessageError, error_message, translate
 
+COMMANDS = frozenset({"!sr", "!queue", "!np", "!song", "!currentsong", "!skip", "!setlang", "!volume", "!help"})
 
 @dataclass(frozen=True)
 class User:
@@ -72,6 +73,21 @@ class SongRequests:
 
     async def handle(self, user, message):
         command, _, query = message.strip().partition(" ")
+        if command.lower() == "!help":
+            return self.reply("help_commands")
+        if command.lower() == "!volume":
+            if not user.roles & {"moderator", "broadcaster"}:
+                return self.reply("volume_permission")
+            argument = query.strip()
+            if (not argument.isascii() or not argument.isdecimal() or len(argument) > 2
+                    or not 0 <= int(argument) <= 60):
+                return self.reply("volume_usage")
+            async with self.lock:
+                try:
+                    await self.spotify.set_volume(int(argument))
+                except (SpotifyError, OAuthError) as error:
+                    return error_message(self.language, error)
+            return self.reply("volume_success", volume=int(argument))
         if command.lower() == "!setlang":
             if not user.roles & {"moderator", "broadcaster"}:
                 return self.reply("lang_permission")
@@ -85,7 +101,7 @@ class SongRequests:
                 return self.reply("lang_save_error")
             self.language = language
             return self.reply("lang_changed")
-        if command.lower() == "!np":
+        if command.lower() in {"!np", "!song", "!currentsong"}:
             if query.strip():
                 return self.reply("np_usage")
             try:

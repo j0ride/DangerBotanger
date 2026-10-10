@@ -1,5 +1,8 @@
 from dataclasses import dataclass
 from json import JSONDecodeError
+from difflib import SequenceMatcher
+import re
+import unicodedata
 import httpx
 from .oauth import OAuth
 from .i18n import translate
@@ -60,14 +63,68 @@ class Spotify:
                                uncertain=method == "POST" and response.status_code >= 500)
 
     async def search(self, query):
-        data = await self.request("GET", "search", params={"q": query, "type": "track", "limit": 1})
-        items = data["tracks"]["items"]
-        if not items:
+        data = await self.request("GET", "search", params={"q": query, "type": "track", "limit": 10})
+        if not isinstance(data, dict) or not isinstance(data.get("tracks"), dict):
+            raise SpotifyError("Spotify retornou uma resposta inválida. Tente novamente.")
+        items = data["tracks"].get("items")
+        if not isinstance(items, list):
+            raise SpotifyError("Spotify retornou uma resposta inválida. Tente novamente.")
+        candidates = []
+        try:
+            for item in items:
+                if item.get("is_playable") is False or item.get("is_local"):
+                    continue
+                track = Track(item["id"], item["uri"], item["name"],
+                              tuple(a["name"] for a in item["artists"]),
+                              tuple(a["id"] for a in item["artists"]), item["duration_ms"], item["explicit"])
+                candidates.append((self.match_score(query, track), track))
+        except (KeyError, TypeError, AttributeError):
+            raise SpotifyError("Spotify retornou uma resposta inválida. Tente novamente.") from None
+        if not candidates:
             return None
-        item = items[0]
-        return Track(item["id"], item["uri"], item["name"],
-                     tuple(a["name"] for a in item["artists"]),
-                     tuple(a["id"] for a in item["artists"]), item["duration_ms"], item["explicit"])
+        score, track = max(candidates, key=lambda candidate: candidate[0])
+        return track if score >= 0.90 else None
+
+    @staticmethod
+    def words(text):
+        normalized = unicodedata.normalize("NFKD", text.casefold())
+        return re.findall(r"[^\W_]+", "".join(c for c in normalized if not unicodedata.combining(c)))
+
+    @staticmethod
+    def phrase_score(query, text):
+        """Match consecutive words; short words must match exactly, others tolerate small typos."""
+        if not query or len(query) > len(text):
+            return 0
+        best = 0
+        for start in range(len(text) - len(query) + 1):
+            ratios = [1.0 if left == right else
+                      (SequenceMatcher(None, left, right).ratio() if min(len(left), len(right)) > 3 else 0)
+                      for left, right in zip(query, text[start:start + len(query)])]
+            if min(ratios) >= 0.80:
+                # Prefer full titles over excerpts or versions with extra words.
+                best = max(best, sum(ratios) / len(ratios) * 0.95 + 0.05 * len(query) / len(text))
+        return best
+
+    @classmethod
+    def match_score(cls, query, track):
+        words, title = cls.words(query), cls.words(track.name)
+        best = cls.phrase_score(words, title)
+        # Accept either song + artist or artist + song, requiring both parts to match.
+        for split in range(1, len(words)):
+            for song, artist in ((words[:split], words[split:]), (words[split:], words[:split])):
+                title_score = cls.phrase_score(song, title)
+                artist_score = max((cls.phrase_score(artist, cls.words(name)) for name in track.artists), default=0)
+                if min(title_score, artist_score) >= 0.85:
+                    best = max(best, 0.75 * title_score + 0.25 * artist_score)
+        return best
+
+    async def set_volume(self, volume):
+        if not isinstance(volume, int) or isinstance(volume, bool) or not 0 <= volume <= 60:
+            raise ValueError("Volume deve estar entre 0 e 60.")
+        params = {"volume_percent": volume}
+        if self.device_id:
+            params["device_id"] = self.device_id
+        await self.request("PUT", "me/player/volume", expect_json=False, params=params)
 
     async def enqueue(self, uri):
         params = {"uri": uri}

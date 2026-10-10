@@ -1,6 +1,22 @@
 """Chat response catalog. Music metadata is never translated."""
 
 MESSAGES = {
+    "help_commands": {
+        "br": "Comandos: !help (ajuda); !sr <música e artista> (pedir); !queue [página] (fila); !np / !song / !currentsong (tocando agora). Mods/dono: !skip (pular); !volume <0-60> (volume); !setlang br|en (idioma).",
+        "en": "Commands: !help (help); !sr <song and artist> (request); !queue [page] (queue); !np / !song / !currentsong (now playing). Mods/owner: !skip (skip); !volume <0-60> (volume); !setlang br|en (language)."
+    },
+    "volume_permission": {
+        "br": "Somente moderadores e o dono do canal podem alterar o volume.",
+        "en": "Only moderators and the channel owner can change the volume."
+    },
+    "volume_usage": {
+        "br": "Uso: !volume <0-60>. Exemplo: !volume 30",
+        "en": "Usage: !volume <0-60>. Example: !volume 30"
+    },
+    "volume_success": {
+        "br": "Volume do Spotify ajustado para {volume}%.",
+        "en": "Spotify volume set to {volume}%."
+    },
     "sr_duplicate_spotify": {
         "br": "Esta música já está na fila de reprodução do Spotify.",
         "en": "This song is already in the Spotify playback queue."
@@ -122,8 +138,8 @@ MESSAGES = {
         "en": "The request queue is full. Try again later."
     },
     "sr_empty": {
-        "br": "Nenhuma música encontrada.",
-        "en": "No songs found."
+        "br": "Não encontrei uma correspondência confiável. Confira o título e informe o artista: !sr <música e artista>.",
+        "en": "No reliable match found. Check the title and include the artist: !sr <song and artist>."
     },
     "sr_duplicate": {
         "br": "Esta música já está aguardando envio.",

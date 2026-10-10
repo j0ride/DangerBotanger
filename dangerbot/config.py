@@ -32,7 +32,7 @@ class Config:
         permission = os.getenv("REQUEST_PERMISSION", "everyone")
         if permission not in {"everyone", "subscriber", "moderator", "broadcaster"}:
             raise ValueError("REQUEST_PERMISSION inválida.")
-        user = float(os.getenv("USER_COOLDOWN", "30"))
+        user = float(os.getenv("USER_COOLDOWN", "5"))
         global_ = float(os.getenv("GLOBAL_COOLDOWN", "5"))
         duration = int(os.getenv("MAX_DURATION_SECONDS", "600"))
         pending = int(os.getenv("MAX_PENDING_REQUESTS", "30"))
