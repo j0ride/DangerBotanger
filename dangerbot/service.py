@@ -8,7 +8,7 @@ from .spotify import SearchSuggestion, Spotify, SpotifyError
 from .oauth import OAuthError
 from .i18n import MessageError, error_message, translate
 
-COMMANDS = frozenset({"!sr", "!queue", "!np", "!song", "!currentsong", "!skip", "!setlang", "!volume", "!help"})
+COMMANDS = frozenset({"!sr", "!queue", "!np", "!song", "!currentsong", "!skip", "!setlang", "!volume", "!help", "!play", "!pause"})
 
 @dataclass(frozen=True)
 class User:
@@ -76,6 +76,20 @@ class SongRequests:
         command, _, query = message.strip().partition(" ")
         if command.lower() == "!help":
             return self.reply("help_commands")
+        if command.lower() in {"!play", "!pause"}:
+            if not user.roles & {"moderator", "broadcaster"}:
+                return self.reply("playback_permission")
+            if query.strip():
+                return self.reply("playback_usage", command=command.lower())
+            async with self.lock:
+                try:
+                    if command.lower() == "!play":
+                        await self.spotify.play()
+                    else:
+                        await self.spotify.pause()
+                except (SpotifyError, OAuthError) as error:
+                    return error_message(self.language, error)
+            return self.reply("play_success" if command.lower() == "!play" else "pause_success")
         if command.lower() == "!volume":
             if not user.roles & {"moderator", "broadcaster"}:
                 return self.reply("volume_permission")

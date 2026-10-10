@@ -18,6 +18,21 @@ DANGERBOTANGER 0.1.0 — WINDOWS 64 BITS
 A conta Spotify precisa ser Premium. O aplicativo também precisa permitir
 acesso à sua conta conforme as regras do Spotify Dashboard.
 
+COMANDOS DO CHAT
+!help — lista os comandos.
+!sr <música e artista> — pede uma música (conforme a permissão configurada).
+!sr confirmar — aceita a sugestão do seu pedido em até 60 segundos.
+!queue [página] — mostra a fila.
+!np, !song, !currentsong — mostram a música atual.
+
+Somente moderadores e dono do canal:
+!play — retoma a reprodução atual do Spotify, sem argumentos.
+!pause — pausa a reprodução atual do Spotify, sem argumentos.
+!skip — pula a música atual.
+!volume <0-60> — ajusta o volume.
+!setlang br|en — define o idioma das respostas.
+Abra o Spotify e inicie uma música antes de usar os controles.
+
 As configurações, autorizações e a fila ficam em:
 %LOCALAPPDATA%\DangerBotanger
 Você pode substituir o executável em uma atualização sem perder esses dados.

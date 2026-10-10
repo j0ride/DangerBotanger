@@ -12,6 +12,8 @@ Comandos no chat:
 | `!np` / `!song` / `!currentsong` | Mostra música, artista e quem pediu via !sr, quando identificado; informa se está pausado | Todos |
 | `!queue [página]` | Mostra a fila real do Spotify, 5 itens por página | Todos |
 | `!skip` | Pula a música atual no Spotify | Moderadores e dono do canal |
+| `!play` | Retoma a reprodução atual do Spotify, sem selecionar outra música | Moderadores e dono do canal |
+| `!pause` | Pausa a reprodução atual do Spotify | Moderadores e dono do canal |
 | `!volume <0-60>` | Ajusta o volume do Spotify; valores fora do intervalo são recusados | Moderadores e dono do canal |
 | `!setlang br` / `!setlang en` | Define português brasileiro ou inglês para as respostas no chat | Moderadores e dono do canal |
 
@@ -22,6 +24,8 @@ A busca compara as palavras do título e do artista, aceitando ambas as ordens e
 Se nenhum resultado for retornado, refine o pedido. A validação não garante identificar a intenção em pedidos ambíguos ou títulos iguais de artistas diferentes; informe o artista para melhorar a precisão. As palavras `confirmar` e `confirm`, usadas sozinhas após `!sr`, ficam reservadas para a confirmação; para pedir uma música com esse título, inclua o artista.
 
 Exemplo: `!volume 30` ajusta para 30%; `!volume 0` silencia; `!volume 61` é recusado. O limite de 60 vale para comandos do bot, não para alterações manuais. O comando usa o dispositivo configurado em SPOTIFY_DEVICE_ID, ou o ativo quando não configurado, e as permissões OAuth existentes. O dispositivo precisa permitir controle de volume pela API. Consulte a [referência de volume do Spotify](https://developer.spotify.com/documentation/web-api/reference/set-volume-for-users-playback).
+
+`!play` e `!pause` não recebem argumentos. Usam o dispositivo configurado em SPOTIFY_DEVICE_ID, ou o ativo quando não configurado. `!play` retoma o contexto atual; se não houver dispositivo/contexto disponível, abra o Spotify e inicie uma música manualmente. As permissões OAuth existentes já permitem esses comandos. Consulte [retomar reprodução](https://developer.spotify.com/documentation/web-api/reference/start-a-users-playback) e [pausar reprodução](https://developer.spotify.com/documentation/web-api/reference/pause-a-users-playback).
 
 O bot acompanha a reprodução a cada 10 segundos e ao consultar !np. A associação entre uma reprodução e um pedido fica salva no SQLite; consultas repetidas não consomem pedidos repetidos da mesma música. Exemplo: `Tocando agora: Song - Artist. Pedida por @viewer.` Uma música sem pedido ativo identificado é exibida sem solicitante. Pedidos que começam a tocar liberam uma vaga do limite por usuário. O Spotify não fornece IDs de ocorrências: adições manuais da mesma faixa, repetições não observadas enquanto o bot está desligado e retrocessos de mais de 5 segundos podem tornar a atribuição ambígua. A associação é feita pelo histórico e pelas mudanças observadas de URI/progresso/dispositivo, não por autoria fornecida pelo Spotify.
 

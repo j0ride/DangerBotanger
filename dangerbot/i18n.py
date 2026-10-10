@@ -2,8 +2,24 @@
 
 MESSAGES = {
     "help_commands": {
-        "br": "Comandos: !help (ajuda); !sr <música e artista> (pedir); !sr confirmar (aceitar sugestão); !queue [página] (fila); !np / !song / !currentsong (tocando agora). Mods/dono: !skip (pular); !volume <0-60> (volume); !setlang br|en (idioma).",
-        "en": "Commands: !help (help); !sr <song and artist> (request); !sr confirm (accept suggestion); !queue [page] (queue); !np / !song / !currentsong (now playing). Mods/owner: !skip (skip); !volume <0-60> (volume); !setlang br|en (language)."
+        "br": "Comandos: !help (ajuda); !sr <música e artista> (pedir); !sr confirmar (aceitar sugestão); !queue [página] (fila); !np / !song / !currentsong (tocando agora). Mods/dono: !play (retomar); !pause (pausar); !skip (pular); !volume <0-60> (volume); !setlang br|en (idioma).",
+        "en": "Commands: !help (help); !sr <song and artist> (request); !sr confirm (accept suggestion); !queue [page] (queue); !np / !song / !currentsong (now playing). Mods/owner: !play (resume); !pause (pause); !skip (skip); !volume <0-60> (volume); !setlang br|en (language)."
+    },
+    "playback_permission": {
+        "br": "Somente moderadores e o dono do canal podem pausar ou retomar a reprodução.",
+        "en": "Only moderators and the channel owner can pause or resume playback."
+    },
+    "playback_usage": {
+        "br": "Uso: {command} (sem argumentos).",
+        "en": "Usage: {command} (no arguments)."
+    },
+    "play_success": {
+        "br": "Reprodução retomada no Spotify.",
+        "en": "Spotify playback resumed."
+    },
+    "pause_success": {
+        "br": "Reprodução pausada no Spotify.",
+        "en": "Spotify playback paused."
     },
     "sr_suggestion": {
         "br": "Sugestão do Spotify: {label}. É essa? Envie !sr confirmar em até 60s para adicionar, ou faça outro pedido.",

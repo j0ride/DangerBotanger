@@ -142,6 +142,14 @@ class Spotify:
         params = {"device_id": self.device_id} if self.device_id else {}
         await self.request("POST", "me/player/next", expect_json=False, params=params)
 
+    async def play(self):
+        params = {"device_id": self.device_id} if self.device_id else {}
+        await self.request("PUT", "me/player/play", expect_json=False, params=params)
+
+    async def pause(self):
+        params = {"device_id": self.device_id} if self.device_id else {}
+        await self.request("PUT", "me/player/pause", expect_json=False, params=params)
+
     @staticmethod
     def item_label(item, language="br"):
         if not isinstance(item, dict):
