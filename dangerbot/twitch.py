@@ -71,8 +71,8 @@ class Twitch:
                     reply = await self.service.handle(user, text)
                     if reply:
                         await asyncio.sleep(max(0, self.last_reply + 1.6 - time.monotonic()))
-                        safe = " ".join(reply.replace("\r", " ").replace("\n", " ").split())[:350]
-                        await send(f"PRIVMSG #{self.config.channel} :@{user.name} {safe}")
+                        safe = " ".join(reply.replace("\r", " ").replace("\n", " ").replace("\x01", "").split())[:350]
+                        await send(f"PRIVMSG #{self.config.channel} :\x01ACTION @{user.name} {safe}\x01")
                         self.last_reply = time.monotonic()
 
             async with asyncio.TaskGroup() as group:

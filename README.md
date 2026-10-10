@@ -1,5 +1,7 @@
 # DangerBotanger
 
+Branch experimental `test/twitch-me-messages`: todas as respostas no chat são enviadas como ações `/me` (CTCP ACTION no IRC), mantendo a menção ao solicitante. A janela mostra **Teste /me** para identificar esta versão. A aparência e a cor dependem do cliente de chat e das extensões; o bot envia a ação, mas não define a cor do texto. Teste no chat usado na sua live antes de integrar em `main`. O pacote de teste fica em `dist/DangerBotanger-me-test-Windows-x64.zip`; as configurações são as mesmas da versão normal, então execute somente uma versão por vez.
+
 Bot Twitch em Python: `!sr <música e artista>` compara até 10 resultados na Spotify Web API, aplica regras e salva o pedido na fila local. Um worker envia os pedidos em ordem à fila do Spotify. `!np` consulta a reprodução atual e `!queue` consulta a fila real do Spotify.
 
 Comandos no chat:
