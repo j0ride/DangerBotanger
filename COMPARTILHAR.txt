@@ -1,0 +1,27 @@
+DANGERBOTANGER 0.1.0 — WINDOWS 64 BITS
+
+1. Extraia o ZIP em uma pasta e abra DangerBotanger.exe.
+   Não é necessário instalar Python. Execute somente uma instância do bot.
+2. Na aba Twitch, informe o canal da live e o login da conta do bot.
+   Abra o painel de aplicativos, cadastre seu aplicativo e copie o Client ID
+   e o client secret. Cadastre a URL de callback exibida na interface.
+3. Faça o mesmo na aba Spotify, usando suas próprias credenciais.
+4. Clique em Autorizar Spotify e conclua no navegador.
+   Clique em Autorizar Twitch e entre com a conta do bot.
+   O certificado local é criado automaticamente. No aviso do navegador,
+   prossiga apenas para o callback local configurado.
+5. Ajuste as regras de pedidos, abra o Spotify e inicie uma música.
+   Clique em Iniciar bot. Para encerrar, clique em Parar ou feche a janela.
+
+A conta Spotify precisa ser Premium. O aplicativo também precisa permitir
+acesso à sua conta conforme as regras do Spotify Dashboard.
+
+As configurações, autorizações e a fila ficam em:
+%LOCALAPPDATA%\DangerBotanger
+Você pode substituir o executável em uma atualização sem perder esses dados.
+O aplicativo não importa automaticamente configurações de um projeto antigo.
+Para migrar, com ambos os bots fechados, copie o .env e a pasta data do projeto
+para a pasta acima. Caminhos de certificados personalizados precisam ser revistos.
+
+Cada streamer deve usar suas próprias contas e aplicativos. Não compartilhe
+o .env, os arquivos de tokens nem a pasta de configurações pessoais.

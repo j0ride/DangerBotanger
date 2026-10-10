@@ -1,6 +1,7 @@
 """Local desktop setup and bot controls."""
 import asyncio
 import logging
+import os
 from pathlib import Path
 from queue import Empty, Queue
 import tkinter as tk
@@ -9,6 +10,7 @@ from urllib.parse import urlparse
 import webbrowser
 
 from .desktop_worker import TaskRunner
+from .paths import application_directory
 from .settings import FIELDS, apply_settings, ensure_certificate, load_settings, save_settings, validate_settings
 
 
@@ -131,6 +133,7 @@ class Desktop:
         root.protocol("WM_DELETE_WINDOW", self.close)
         self._refresh_auth_status()
         self._append("Configurações carregadas. Altere as abas e clique em Salvar configurações.")
+        self._append("Pasta das configurações: " + str(self.directory))
         root.after(100, self._poll)
 
     def _button(self, parent, text, command):
@@ -276,6 +279,9 @@ class Desktop:
 
 
 def main():
+    directory = application_directory()
+    directory.mkdir(parents=True, exist_ok=True)
+    os.chdir(directory)
     root = tk.Tk()
-    Desktop(root)
+    Desktop(root, directory)
     root.mainloop()

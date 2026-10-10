@@ -31,6 +31,21 @@ A Web API documentada oferece consulta e adição à fila, mas não remoção de
 
 ## Preparação
 
+### Executável para compartilhar (Windows 64 bits)
+
+Distribua `dist/DangerBotanger-0.1.0-Windows-x64.zip`. Ele contém `DangerBotanger.exe` e um guia de primeiro uso. Seu amigo extrai o ZIP, abre o executável, preenche suas credenciais e autoriza as contas pela interface. Python e as dependências já estão dentro do executável.
+
+A versão empacotada salva o `.env`, os tokens, o certificado e a fila em `%LOCALAPPDATA%\DangerBotanger`, independentemente da pasta em que o executável foi colocado. Atualizar o executável preserva esses dados. A versão em código continua usando a pasta do projeto. Para migrar os dados atuais, feche o bot e copie seu `.env` e sua pasta `data/` para a pasta de configurações do executável; confira caminhos de certificados personalizados. Compartilhe somente o ZIP, sem seus dados locais.
+
+Para gerar novamente no Windows, usando o ambiente do projeto:
+
+```powershell
+python -m pip install -e ".[build]"
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build-windows.ps1
+```
+
+O build usa [PyInstaller](https://pyinstaller.org/en/stable/usage.html), inclui a interface Tkinter e a geração do certificado, e não inclui `.env`, `data/`, testes ou feedbacks. A arquitetura do executável segue o Python utilizado no build; este pacote foi gerado com Python Windows x64. O número da versão está em `pyproject.toml`, `scripts/windows-version.txt` e nos nomes do ZIP/guia; atualize-os juntos nas próximas versões.
+
 ### Interface gráfica
 
 Depois de instalar as dependências (`python -m pip install -e .` no ambiente virtual), dê dois cliques em `abrir-interface.bat`. Também é possível abrir com `python main.py gui`. O lançador usa o Python da pasta `.venv` e abre a janela sem terminal. Não é necessário criar ou editar o `.env` manualmente: a interface carrega o arquivo existente ou inicia uma configuração vazia com os valores padrão.
@@ -42,7 +57,7 @@ Depois de instalar as dependências (`python -m pip install -e .` no ambiente vi
 5. Use **Autorizar Spotify** e **Autorizar Twitch**, um de cada vez. Cada botão salva os valores e abre o navegador. Para Twitch, entre com a conta do bot. Você tem 3 minutos para concluir cada autorização. O certificado HTTPS local é criado automaticamente, sem exigir OpenSSL; no aviso do navegador, prossiga somente para seu callback local configurado. Um certificado existente não é substituído.
 6. Abra o Spotify e inicie uma música, depois clique em **Iniciar bot**. A área **Atividade** mostra o andamento. **Parar / cancelar** encerra o bot ou cancela a autorização; fechar a janela também encerra a operação.
 
-A indicação **autorização salva** significa que existe um token local, não que a conexão já foi validada. Ao trocar as credenciais de um aplicativo ou a conta utilizada, autorize novamente. Configurações, tokens, certificado e fila permanecem locais; cada streamer deve configurar suas próprias contas. Ao compartilhar o projeto, não inclua `.env`, `data/` ou `.venv/`. Esta interface acompanha o projeto Python; o `.bat` exige o ambiente preparado e ainda não é um instalador independente.
+A indicação **autorização salva** significa que existe um token local, não que a conexão já foi validada. Ao trocar as credenciais de um aplicativo ou a conta utilizada, autorize novamente. Configurações, tokens, certificado e fila permanecem locais; cada streamer deve configurar suas próprias contas. Ao compartilhar o projeto, não inclua `.env`, `data/` ou `.venv/`. O `.bat` exige o ambiente Python preparado; para amigos que não usam Python, compartilhe o ZIP do executável descrito acima.
 
 ### Linha de comando
 
