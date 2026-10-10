@@ -1,18 +1,22 @@
-DANGERBOTANGER 0.1.3 — WINDOWS 64 BITS
+DANGERBOTANGER 0.1.4 — WINDOWS 64 BITS
 
 Todas as respostas são enviadas como ações /me. A cor/aparência depende
 do cliente de chat e das extensões. Execute somente uma versão do bot por vez.
 
 1. Extraia o ZIP em uma pasta e abra DangerBotanger.exe.
    Não é necessário instalar Python. Execute somente uma instância do bot.
-2. Na aba Twitch, informe o canal da live e o login da conta do bot.
-   Abra o painel de aplicativos, cadastre seu aplicativo e copie o Client ID
-   e o client secret. Cadastre a URL de callback exibida na interface.
+2. Na aba Twitch, preencha as duas seções:
+   Conta da live: informe o canal. Abra o painel com a conta do streamer,
+   cadastre o aplicativo e copie seu Client ID e client secret.
+   Cadastre nesse aplicativo a URL de callback exibida na interface.
+   Conta do bot: informe o login que enviará as mensagens no chat.
+   Para usar a própria conta da live como bot, repita o mesmo login.
 3. Faça o mesmo na aba Spotify, usando suas próprias credenciais.
 4. Clique em Autorizar Spotify e conclua no navegador.
-   Clique em Autorizar Twitch e entre com a conta do bot.
-   Se estiver na conta do streamer no navegador, saia dela e entre na conta
-   do bot antes de autorizar. O login autorizado precisa ser o da conta do bot.
+   Na seção Conta do bot, clique em Autorizar conta do bot na Twitch.
+   Se usar um bot separado e estiver na conta do streamer no navegador,
+   troque para a conta do bot antes de autorizar.
+   O login autorizado precisa ser o informado na seção Conta do bot.
    O certificado local é criado automaticamente. No aviso do navegador,
    prossiga apenas para o callback local configurado.
 5. Ajuste as regras de pedidos, abra o Spotify e inicie uma música.

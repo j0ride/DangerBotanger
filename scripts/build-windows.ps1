@@ -15,8 +15,8 @@ try {
     $taskGuide = Join-Path $taskProjectDirectory 'dist\LEIA-ME.txt'
     Copy-Item -LiteralPath (Join-Path $taskProjectDirectory 'COMPARTILHAR.txt') -Destination $taskGuide -Force
     Compress-Archive -LiteralPath @($taskExecutable, $taskGuide) -DestinationPath (
-        Join-Path $taskProjectDirectory 'dist\DangerBotanger-0.1.3-Windows-x64.zip') -Force
-    Write-Output 'Pronto: dist/DangerBotanger-0.1.3-Windows-x64.zip'
+        Join-Path $taskProjectDirectory 'dist\DangerBotanger-0.1.4-Windows-x64.zip') -Force
+    Write-Output 'Pronto: dist/DangerBotanger-0.1.4-Windows-x64.zip'
 } finally {
     Pop-Location
 }

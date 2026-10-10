@@ -63,7 +63,7 @@ class Desktop:
         notebook.pack(fill="both", expand=True)
         settings = load_settings(self.env_path)
         explanations = {
-            "Twitch": "Canal da live = seu login de streamer; conta do bot = login que enviará mensagens. No navegador, entre na conta do bot antes de autorizar. Se estiver na conta do streamer, saia dela primeiro. Cadastre as credenciais e a mesma URL de callback no aplicativo.",
+            "Twitch": "Configure primeiro a conta da live e seu aplicativo. Depois autorize a conta que enviará as mensagens do bot.",
             "Spotify": "Cadastre um aplicativo no painel do Spotify e copie as credenciais. Autorize a conta que reproduzirá as músicas (Premium). Sem ID de dispositivo, o bot usa o dispositivo ativo. Cadastre a URL de callback abaixo no aplicativo.",
             "Pedidos": "everyone = todos; subscriber = inscritos; moderator = moderadores; broadcaster = dono do canal. true = sim; false = não. Nas listas de bloqueio, separe os valores por vírgulas.",
             "Avançado": "Os caminhos podem ser relativos à pasta do projeto. A autenticação HTTPS da Twitch precisa de um certificado local; ele é criado automaticamente ao autorizar. Nenhum certificado é instalado no Windows.",
@@ -83,30 +83,21 @@ class Desktop:
             content.columnconfigure(1, weight=1)
             ttk.Label(content, text=description, wraplength=730, justify="left").grid(
                 row=0, column=0, columnspan=2, sticky="ew", pady=(0, 14))
+            if group == "Twitch":
+                self._twitch_settings(content, settings)
+                continue
             row = 1
             for field in FIELDS:
                 if field.group != group:
                     continue
-                variable = tk.StringVar(value=settings[field.key])
-                variable.trace_add("write", self._changed)
-                self.variables[field.key] = variable
-                ttk.Label(content, text=field.label).grid(row=row, column=0, sticky="w", padx=(0, 15), pady=5)
-                if field.choices:
-                    control = ttk.Combobox(content, textvariable=variable, values=field.choices, state="readonly")
-                else:
-                    control = ttk.Entry(content, textvariable=variable, show="•" if field.secret else "")
-                control.grid(row=row, column=1, sticky="ew", pady=5)
-                self.controls.append(control)
-                if field.secret:
-                    self.secret_entries.append(control)
+                self._field(content, field, settings, row)
                 row += 1
-            if group in {"Spotify", "Twitch"}:
+            if group == "Spotify":
                 actions = ttk.Frame(content)
                 actions.grid(row=row, column=0, columnspan=2, sticky="w", pady=(14, 0))
                 provider = group.lower()
                 self._button(actions, "Autorizar " + group, lambda p=provider: self.authenticate(p)).pack(side="left")
-                dashboard = ("https://developer.spotify.com/dashboard" if provider == "spotify"
-                             else "https://dev.twitch.tv/console/apps")
+                dashboard = "https://developer.spotify.com/dashboard"
                 self._button(actions, "Abrir painel de aplicativos", lambda url=dashboard: webbrowser.open(url)).pack(side="left", padx=8)
             elif group == "Avançado":
                 self._button(content, "Preparar certificado local", self.prepare_certificate).grid(
@@ -135,6 +126,46 @@ class Desktop:
         self._append("Configurações carregadas. Altere as abas e clique em Salvar configurações.")
         self._append("Pasta das configurações: " + str(self.directory))
         root.after(100, self._poll)
+
+    def _field(self, parent, field, settings, row):
+        variable = tk.StringVar(value=settings[field.key])
+        variable.trace_add("write", self._changed)
+        self.variables[field.key] = variable
+        ttk.Label(parent, text=field.label).grid(row=row, column=0, sticky="w", padx=(0, 15), pady=5)
+        if field.choices:
+            control = ttk.Combobox(parent, textvariable=variable, values=field.choices, state="readonly")
+        else:
+            control = ttk.Entry(parent, textvariable=variable, show="•" if field.secret else "")
+        control.grid(row=row, column=1, sticky="ew", pady=5)
+        self.controls.append(control)
+        if field.secret:
+            self.secret_entries.append(control)
+
+    def _twitch_settings(self, content, settings):
+        sections = (
+            ("1. Conta da live — canal e aplicativo",
+             "Informe o canal onde o bot vai atuar. Abra o painel com sua conta de streamer para cadastrar o aplicativo. Client ID e client secret são desse aplicativo. Cadastre nele a URL de callback abaixo.",
+             ("TWITCH_CHANNEL", "TWITCH_CLIENT_ID", "TWITCH_CLIENT_SECRET", "TWITCH_REDIRECT_URI")),
+            ("2. Conta do bot — mensagens e autorização",
+             "Informe o login que enviará as mensagens e entre nessa conta no navegador antes de autorizar. Se usar um bot separado, troque a conta da live pela conta do bot no navegador. Para usar a própria conta da live como bot, repita o mesmo login aqui.",
+             ("TWITCH_BOT_NAME",)),
+        )
+        fields = {field.key: field for field in FIELDS}
+        for index, (title, description, keys) in enumerate(sections, start=1):
+            section = ttk.LabelFrame(content, text=title, padding=12)
+            section.grid(row=index, column=0, columnspan=2, sticky="ew", pady=(0, 14))
+            section.columnconfigure(1, weight=1)
+            ttk.Label(section, text=description, wraplength=700, justify="left").grid(
+                row=0, column=0, columnspan=2, sticky="ew", pady=(0, 8))
+            for row, key in enumerate(keys, start=1):
+                self._field(section, fields[key], settings, row)
+            if index == 1:
+                self._button(section, "Abrir painel de aplicativos da Twitch", lambda: webbrowser.open(
+                    "https://dev.twitch.tv/console/apps")).grid(
+                        row=len(keys) + 1, column=0, columnspan=2, sticky="w", pady=(10, 0))
+            else:
+                self._button(section, "Autorizar conta do bot na Twitch", lambda: self.authenticate("twitch")).grid(
+                    row=len(keys) + 1, column=0, columnspan=2, sticky="w", pady=(10, 0))
 
     def _button(self, parent, text, command):
         button = ttk.Button(parent, text=text, command=command)
