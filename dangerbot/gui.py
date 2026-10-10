@@ -63,7 +63,7 @@ class Desktop:
         notebook.pack(fill="both", expand=True)
         settings = load_settings(self.env_path)
         explanations = {
-            "Twitch": "Use os logins sem URL. Cadastre um aplicativo no painel da Twitch e copie as credenciais. Autorize usando a conta do bot. A URL de callback precisa ser a mesma cadastrada no aplicativo.",
+            "Twitch": "Canal da live = seu login de streamer; conta do bot = login que enviará mensagens. No navegador, entre na conta do bot antes de autorizar. Se estiver na conta do streamer, saia dela primeiro. Cadastre as credenciais e a mesma URL de callback no aplicativo.",
             "Spotify": "Cadastre um aplicativo no painel do Spotify e copie as credenciais. Autorize a conta que reproduzirá as músicas (Premium). Sem ID de dispositivo, o bot usa o dispositivo ativo. Cadastre a URL de callback abaixo no aplicativo.",
             "Pedidos": "everyone = todos; subscriber = inscritos; moderator = moderadores; broadcaster = dono do canal. true = sim; false = não. Nas listas de bloqueio, separe os valores por vírgulas.",
             "Avançado": "Os caminhos podem ser relativos à pasta do projeto. A autenticação HTTPS da Twitch precisa de um certificado local; ele é criado automaticamente ao autorizar. Nenhum certificado é instalado no Windows.",

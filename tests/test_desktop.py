@@ -218,6 +218,7 @@ class DesktopTests(unittest.TestCase):
             self.assertFalse(self.desktop.save())
 
     def test_authentication_button_uses_saved_credentials_and_prepares_https(self):
+        self.desktop.variables["TWITCH_BOT_NAME"].set("examplebot")
         self.desktop.variables["TWITCH_CLIENT_ID"].set("example-id")
         self.desktop.variables["TWITCH_CLIENT_SECRET"].set("example-secret")
         with patch.dict(os.environ), patch("dangerbot.oauth.authorize", new_callable=AsyncMock) as authorize, \

@@ -24,6 +24,19 @@ class OAuthError(Exception):
     pass
 
 
+def check_twitch_identity(identity, expected_login, expected_client):
+    if not isinstance(identity, dict):
+        raise OAuthError("Twitch retornou uma autorização inválida. Autorize novamente.")
+    if identity.get("client_id") != expected_client:
+        raise OAuthError("O token Twitch pertence a outro aplicativo. Confira o Client ID e autorize Twitch novamente.")
+    login = identity.get("login") or "desconhecida"
+    if not isinstance(login, str) or login.lower() != expected_login.lower():
+        raise OAuthError(f"A conta autorizada é @{login}, mas a conta do bot configurada é @{expected_login}. "
+                         "No navegador, saia da conta atual e entre na conta do bot; depois autorize Twitch novamente.")
+    if not {"chat:read", "chat:edit"}.issubset(identity.get("scopes") or []):
+        raise OAuthError("Autorize Twitch com chat:read e chat:edit.")
+
+
 class OAuth:
     def __init__(self, provider, client, directory=Path("data")):
         self.provider = provider
@@ -47,7 +60,7 @@ class OAuth:
         temporary.write_text(json.dumps(self.tokens), encoding="utf-8")
         os.replace(temporary, self.path)
 
-    async def exchange(self, data):
+    async def exchange(self, data, *, expected_login=None):
         try:
             response = await self.client.post(PROVIDERS[self.provider][1], data={
                 **data, "client_id": self.client_id, "client_secret": self.secret})
@@ -55,7 +68,26 @@ class OAuth:
             raise OAuthError(f"Falha de rede ao renovar OAuth {self.provider}.") from None
         if response.status_code != 200:
             raise OAuthError(f"OAuth {self.provider} recusado (HTTP {response.status_code}); execute auth novamente.")
-        self.save(response.json())
+        try:
+            tokens = response.json()
+        except ValueError:
+            raise OAuthError("A autorização retornou uma resposta inválida. Tente novamente.") from None
+        if not isinstance(tokens, dict) or not isinstance(tokens.get("access_token"), str) or not tokens["access_token"]:
+            raise OAuthError("A autorização retornou uma resposta inválida. Tente novamente.")
+        if self.provider == "twitch" and expected_login is not None:
+            try:
+                validation = await self.client.get("https://id.twitch.tv/oauth2/validate",
+                                                   headers={"Authorization": "OAuth " + tokens["access_token"]})
+            except httpx.HTTPError:
+                raise OAuthError("Falha de rede ao conferir a conta Twitch. Tente autorizar novamente.") from None
+            if validation.status_code != 200:
+                raise OAuthError("Não foi possível conferir a conta Twitch. Tente autorizar novamente.")
+            try:
+                identity = validation.json()
+            except ValueError:
+                raise OAuthError("Twitch retornou uma autorização inválida. Autorize novamente.") from None
+            check_twitch_identity(identity, expected_login, self.client_id)
+        self.save(tokens)
 
     async def access_token(self, force=False):
         async with self.lock:
@@ -69,6 +101,9 @@ class OAuth:
 
 async def authorize(provider, *, announce=print, show_url=True):
     load_dotenv(interpolate=False)
+    bot_login = os.getenv("TWITCH_BOT_NAME", "").strip().lower()
+    if provider == "twitch" and not bot_login:
+        raise OAuthError("Preencha a conta do bot (TWITCH_BOT_NAME) antes de autorizar Twitch.")
     default_redirect = ("https://localhost:8888/callback" if provider == "twitch"
                         else "http://127.0.0.1:8888/callback")
     redirect = os.getenv(provider.upper() + "_REDIRECT_URI", default_redirect)
@@ -111,11 +146,15 @@ async def authorize(provider, *, announce=print, show_url=True):
         oauth = OAuth(provider, client)
         url = PROVIDERS[provider][0] + "?" + urlencode({
             "client_id": oauth.client_id, "response_type": "code", "redirect_uri": redirect,
-            "scope": PROVIDERS[provider][2], "state": state})
+            "scope": PROVIDERS[provider][2], "state": state,
+            **({"force_verify": "true"} if provider == "twitch" else {})})
         with HTTPServer(("127.0.0.1", parsed.port), Callback) as server:
             if tls_context is not None:
                 server.socket = tls_context.wrap_socket(server.socket, server_side=True)
             server.timeout = 1
+            if provider == "twitch":
+                announce(f"Autorize com a conta do bot @{bot_login}. Se o navegador estiver na conta do streamer, "
+                         "saia dela e entre na conta do bot antes de autorizar.")
             announce("Abra a URL para autorizar sua conta:\n" + url if show_url else
                      "Abrindo o navegador. Conclua a autorização em até 3 minutos.")
             if not webbrowser.open(url) and not show_url:
@@ -125,6 +164,9 @@ async def authorize(provider, *, announce=print, show_url=True):
                 await asyncio.to_thread(server.handle_request)
         if not result.get("code"):
             raise OAuthError("Autorização negada ou tempo esgotado.")
-        await oauth.exchange({"grant_type": "authorization_code", "code": result["code"],
-                              "redirect_uri": redirect})
+        exchange_data = {"grant_type": "authorization_code", "code": result["code"], "redirect_uri": redirect}
+        if provider == "twitch":
+            await oauth.exchange(exchange_data, expected_login=bot_login)
+        else:
+            await oauth.exchange(exchange_data)
         announce(f"OAuth {provider} salvo em data/; tokens renovados automaticamente.")

@@ -8,6 +8,8 @@ DANGERBOTANGER 0.1.0 — WINDOWS 64 BITS
 3. Faça o mesmo na aba Spotify, usando suas próprias credenciais.
 4. Clique em Autorizar Spotify e conclua no navegador.
    Clique em Autorizar Twitch e entre com a conta do bot.
+   Se estiver na conta do streamer no navegador, saia dela e entre na conta
+   do bot antes de autorizar. O login autorizado precisa ser o da conta do bot.
    O certificado local é criado automaticamente. No aviso do navegador,
    prossiga apenas para o callback local configurado.
 5. Ajuste as regras de pedidos, abra o Spotify e inicie uma música.

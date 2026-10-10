@@ -3,7 +3,7 @@ import logging
 import ssl
 import time
 import httpx
-from .oauth import OAuthError
+from .oauth import OAuthError, check_twitch_identity
 from .service import COMMANDS, User
 
 log = logging.getLogger(__name__)
@@ -46,10 +46,7 @@ class Twitch:
         if response.status_code != 200:
             raise RuntimeError("Falha ao validar OAuth Twitch.")
         data = response.json()
-        if data.get("login", "").lower() != self.config.bot_name or data.get("client_id") != self.oauth.client_id:
-            raise RuntimeError("Token Twitch não pertence ao bot/client configurado.")
-        if not {"chat:read", "chat:edit"}.issubset(data.get("scopes", [])):
-            raise RuntimeError("Autorize Twitch com chat:read e chat:edit.")
+        check_twitch_identity(data, self.config.bot_name, self.oauth.client_id)
         return token
 
     async def connect(self):

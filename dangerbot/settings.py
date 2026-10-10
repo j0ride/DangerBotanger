@@ -66,7 +66,7 @@ def validate_settings(values, *, provider=None, require_accounts=False):
         result[key] = result[key].lower().lstrip("#")
         if result[key] and not re.fullmatch(r"[a-z0-9_]{1,25}", result[key]):
             raise ValueError("Use apenas o login no canal e na conta do bot, sem URL.")
-        if require_accounts and not result[key]:
+        if (require_accounts or (provider == "twitch" and key == "TWITCH_BOT_NAME")) and not result[key]:
             raise ValueError("Preencha o canal e a conta do bot na aba Twitch.")
     for key in ("USER_COOLDOWN", "GLOBAL_COOLDOWN"):
         try:
