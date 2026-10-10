@@ -80,7 +80,7 @@ class SongRequests:
         provider, identifier = link
         if provider == "youtube":
             title = await youtube_title(self.spotify.client, identifier)
-            return await self.spotify.search(title)
+            return await self.spotify.search_youtube(title)
         if provider == "spotify_short":
             identifier = await spotify_short_track(self.spotify.client, identifier)
         return await self.spotify.track(identifier)

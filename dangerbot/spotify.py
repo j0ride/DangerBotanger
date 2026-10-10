@@ -6,6 +6,7 @@ import unicodedata
 import httpx
 from .oauth import OAuth
 from .i18n import MessageError, translate
+from .music_titles import COLLABORATION, MusicTitle, clean_video_title, parse_music_title, song_and_guests, version_words
 
 
 class SpotifyError(Exception):
@@ -70,7 +71,7 @@ class Spotify:
             raise SpotifyError(messages.get(response.status_code, "Spotify indisponível."),
                                uncertain=method == "POST" and response.status_code >= 500)
 
-    async def search(self, query):
+    async def search_candidates(self, query):
         data = await self.request("GET", "search", params={"q": query, "type": "track", "limit": 10})
         if not isinstance(data, dict) or not isinstance(data.get("tracks"), dict):
             raise SpotifyError("Spotify retornou uma resposta inválida. Tente novamente.")
@@ -83,13 +84,65 @@ class Spotify:
                 if item.get("is_playable") is False or item.get("is_local"):
                     continue
                 track = self.parse_track(item)
-                candidates.append((self.match_score(query, track), track))
+                candidates.append(track)
         except (KeyError, TypeError, AttributeError):
             raise SpotifyError("Spotify retornou uma resposta inválida. Tente novamente.") from None
+        return candidates
+
+    async def search(self, query):
+        candidates = await self.search_candidates(query)
         if not candidates:
             return None
-        score, track = max(candidates, key=lambda candidate: candidate[0])
-        return track if score >= 0.90 else SearchSuggestion(candidates[0][1])
+        track = max(candidates, key=lambda candidate: self.match_score(query, candidate))
+        return track if self.match_score(query, track) >= 0.90 else SearchSuggestion(candidates[0])
+
+    async def search_youtube(self, video_title):
+        query = clean_video_title(video_title)
+        parsed = parse_music_title(query)
+        if parsed is None:
+            return await self.search(query)
+        # Keep both artist and title in the search, including featured guests.
+        song, guests = song_and_guests(parsed.title)
+        artist = COLLABORATION.sub(" & ", parsed.artist)
+        query = artist + " " + song + (" " + guests if guests else "")
+        candidates = await self.search_candidates(query)
+        if not candidates:
+            return None
+        reversed_title = MusicTitle(parsed.title, parsed.artist)
+        scored = [(max(self.youtube_match_score(parsed, track),
+                       self.youtube_match_score(reversed_title, track)), track) for track in candidates]
+        score, track = max(scored, key=lambda candidate: candidate[0])
+        return track if score >= 0.90 else SearchSuggestion(candidates[0])
+
+    @classmethod
+    def artist_score(cls, artist, names):
+        artist = COLLABORATION.sub(" & ", artist)
+        def name_score(left, right):
+            left, right = cls.words(left), cls.words(right)
+            if not left or not right or min(len(left), len(right)) / max(len(left), len(right)) < 0.8:
+                return 0
+            return cls.phrase_score(left, right)
+        direct = max((name_score(artist, name) for name in (*names, " ".join(names))), default=0)
+        parts = re.split(r"\s*(?:&|,)\s*|\s+[xX]\s+", artist)
+        if len(parts) > 1 and all(parts):
+            separate = min(max((name_score(part, name) for name in names), default=0) for part in parts)
+            return max(direct, separate)
+        return direct
+
+    @classmethod
+    def youtube_match_score(cls, parsed, track):
+        song, guests = song_and_guests(parsed.title)
+        candidate, candidate_guests = song_and_guests(track.name)
+        if version_words(song) != version_words(candidate):
+            return 0
+        title_words, candidate_words = cls.words(song), cls.words(candidate)
+        # Avoid treating a short title as an unrelated longer song name.
+        if not title_words or not candidate_words or min(len(title_words), len(candidate_words)) / max(len(title_words), len(candidate_words)) < 0.8:
+            return 0
+        title_score = cls.phrase_score(title_words, candidate_words)
+        artist_score = cls.artist_score(parsed.artist, track.artists)
+        guest_score = cls.artist_score(guests, (*track.artists, candidate_guests)) if guests else 1
+        return min(title_score, artist_score, guest_score)
 
     @staticmethod
     def parse_track(item):

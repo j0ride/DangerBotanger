@@ -5,6 +5,7 @@ from urllib.parse import parse_qs, urlsplit
 import httpx
 
 from .i18n import MessageError
+from .music_titles import clean_video_title
 
 
 VIDEO_ID = re.compile(r"[A-Za-z0-9_-]{11}")
@@ -54,14 +55,6 @@ def parse_link(query):
     except ValueError:
         pass
     raise MessageError("sr_link_invalid")
-
-
-def clean_video_title(title):
-    # Preserve meaningful versions (live, remix, cover, acoustic).
-    noise = r"(?:official\s+(?:music\s+)?(?:video|audio|lyric(?:s|\s+video)?)|(?:vídeo|video|áudio|audio)\s+oficial|lyrics?|lyric\s+video|hd|hq|4k(?:\s+remaster)?)"
-    title = re.sub(r"[\[(]\s*" + noise + r"\s*[\])]", "", title, flags=re.I)
-    title = re.sub(r"\s*(?:[-|–—:]\s*)?\b" + noise + r"\s*$", "", title, flags=re.I)
-    return " ".join(title.split()).strip(" -|–—:")
 
 
 async def youtube_title(client, identifier):

@@ -85,7 +85,7 @@ class LinkRequestTests(unittest.IsolatedAsyncioTestCase):
         reply = await self.service.handle(self.viewer, "!sr https://youtu.be/" + VIDEO)
         self.assertIn("adicionada", reply)
         search = next(r for r in self.calls if r.url.path.endswith("/search"))
-        self.assertEqual(search.url.params["q"], "Slipknot - Snuff")
+        self.assertEqual(search.url.params["q"], "Slipknot Snuff")
         self.assertEqual(self.queue.next()["uri"], "spotify:track:" + ID)
         self.assertIn("viewer", self.policy.users)
 
