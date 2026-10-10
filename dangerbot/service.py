@@ -4,7 +4,7 @@ import logging
 import sqlite3
 import time
 from dataclasses import dataclass
-from .spotify import Spotify, SpotifyError
+from .spotify import SearchSuggestion, Spotify, SpotifyError
 from .oauth import OAuthError
 from .i18n import MessageError, error_message, translate
 
@@ -66,6 +66,7 @@ class SongRequests:
         self.spotify, self.queue, self.policy = spotify, queue, policy
         self.lock = asyncio.Lock()
         self.skip_until = 0
+        self.suggestions = {}
         self.language = self.queue.language()
 
     def reply(self, key, **values):
@@ -163,13 +164,29 @@ class SongRequests:
         if len(query) > 200:
             return self.reply("sr_long")
         async with self.lock:
+            now = self.policy.clock()
+            self.suggestions = {name: suggestion for name, suggestion in self.suggestions.items()
+                                if suggestion[1] > now}
+            user_key = user.name.casefold()
+            confirming = query.strip().casefold() in {"confirmar", "confirm"}
+            if not confirming:
+                self.suggestions.pop(user_key, None)
             try:
                 self.policy.check_user(user)
                 if self.queue.count() >= self.policy.config.max_pending:
                     raise RequestRejected("queue_full")
-                track = await self.spotify.search(query.strip())
-                if track is None:
-                    return self.reply("sr_empty")
+                suggestion = False
+                if confirming:
+                    pending = self.suggestions.get(user_key)
+                    if pending is None:
+                        return self.reply("sr_no_suggestion")
+                    track = pending[0]
+                else:
+                    result = await self.spotify.search(query.strip())
+                    if result is None:
+                        return self.reply("sr_empty")
+                    suggestion = isinstance(result, SearchSuggestion)
+                    track = result.track if suggestion else result
                 self.policy.check_track(track)
                 if self.queue.duplicate(track.uri):
                     raise RequestRejected("sr_duplicate")
@@ -183,8 +200,14 @@ class SongRequests:
                                               current_item=playback.get("item") if playback else None)
                 if slots >= self.policy.config.max_user_requests:
                     raise RequestRejected("user_queue_limit", limit=self.policy.config.max_user_requests)
+                if suggestion:
+                    if len(self.suggestions) >= 1000:
+                        self.suggestions.pop(next(iter(self.suggestions)))
+                    self.suggestions[user_key] = (track, self.policy.clock() + 60)
+                    return self.reply("sr_suggestion", label=track.label[:180])
                 self.queue.add(user.name, track)
                 self.policy.consume(user)
+                self.suggestions.pop(user_key, None)
                 return self.reply("sr_received", name=track.name, artists=", ".join(track.artists))
             except (RequestRejected, SpotifyError, OAuthError) as error:
                 return error_message(self.language, error)

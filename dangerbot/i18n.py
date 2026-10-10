@@ -2,8 +2,16 @@
 
 MESSAGES = {
     "help_commands": {
-        "br": "Comandos: !help (ajuda); !sr <música e artista> (pedir); !queue [página] (fila); !np / !song / !currentsong (tocando agora). Mods/dono: !skip (pular); !volume <0-60> (volume); !setlang br|en (idioma).",
-        "en": "Commands: !help (help); !sr <song and artist> (request); !queue [page] (queue); !np / !song / !currentsong (now playing). Mods/owner: !skip (skip); !volume <0-60> (volume); !setlang br|en (language)."
+        "br": "Comandos: !help (ajuda); !sr <música e artista> (pedir); !sr confirmar (aceitar sugestão); !queue [página] (fila); !np / !song / !currentsong (tocando agora). Mods/dono: !skip (pular); !volume <0-60> (volume); !setlang br|en (idioma).",
+        "en": "Commands: !help (help); !sr <song and artist> (request); !sr confirm (accept suggestion); !queue [page] (queue); !np / !song / !currentsong (now playing). Mods/owner: !skip (skip); !volume <0-60> (volume); !setlang br|en (language)."
+    },
+    "sr_suggestion": {
+        "br": "Sugestão do Spotify: {label}. É essa? Envie !sr confirmar em até 60s para adicionar, ou faça outro pedido.",
+        "en": "Spotify suggests: {label}. Is this the one? Send !sr confirm within 60s to add it, or make another request."
+    },
+    "sr_no_suggestion": {
+        "br": "Você não tem uma sugestão ativa; ela pode ter expirado. Faça um novo pedido com !sr <música e artista>.",
+        "en": "You have no active suggestion; it may have expired. Make a new request with !sr <song and artist>."
     },
     "volume_permission": {
         "br": "Somente moderadores e o dono do canal podem alterar o volume.",

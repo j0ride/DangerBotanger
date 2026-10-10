@@ -7,6 +7,7 @@ Comandos no chat:
 | Comando | Ação | Permissão |
 | --- | --- | --- |
 | `!sr <música e artista>` | Solicita música | Configurada em REQUEST_PERMISSION |
+| `!sr confirmar` / `!sr confirm` | Aceita a sugestão pendente do seu último pedido, em até 60 segundos | Configurada em REQUEST_PERMISSION |
 | `!help` | Lista os comandos e indica quais são restritos a moderadores/dono | Todos |
 | `!np` / `!song` / `!currentsong` | Mostra música, artista e quem pediu via !sr, quando identificado; informa se está pausado | Todos |
 | `!queue [página]` | Mostra a fila real do Spotify, 5 itens por página | Todos |
@@ -16,7 +17,9 @@ Comandos no chat:
 
 O idioma padrão é `br`. A escolha de `!setlang` vale para todo o canal, muda imediatamente e fica salva em data/queue.sqlite3 para os próximos reinícios. Nomes de músicas e artistas não são traduzidos. Os comandos continuam com os mesmos nomes nos dois idiomas. Logs de terminal e instruções de configuração permanecem em português.
 
-A busca compara as palavras do título e do artista, aceitando ambas as ordens e ignorando diferenças de maiúsculas, acentos e pontuação. Pequenos erros de digitação em palavras longas são tolerados. Resultados sem correspondência suficiente são recusados sem ocupar a fila ou consumir cooldown. Se a música correta não estiver entre os 10 resultados retornados, refine o pedido. Isso reduz escolhas incorretas, mas não garante identificar a intenção em pedidos ambíguos ou títulos iguais de artistas diferentes; informe o artista para melhorar a precisão.
+A busca compara as palavras do título e do artista, aceitando ambas as ordens e ignorando diferenças de maiúsculas, acentos e pontuação. Pequenos erros de digitação em palavras longas são tolerados. Correspondências suficientes entram diretamente na fila. Quando nenhuma passa na validação, o bot mostra o primeiro resultado reproduzível do Spotify como sugestão, sem adicionar nem consumir cooldown. Isso permite pedidos por descrição, como `!sr musica triste do naruto`: se a sugestão estiver correta, o mesmo viewer envia `!sr confirmar` (ou `!sr confirm`) em até 60 segundos. A confirmação usa a faixa sugerida, sem uma nova busca, e verifica novamente permissões, cooldown, bloqueios, duplicatas e limites da fila. Outro pedido substitui a sugestão anterior; sugestões não sobrevivem ao reinício.
+
+Se nenhum resultado for retornado, refine o pedido. A validação não garante identificar a intenção em pedidos ambíguos ou títulos iguais de artistas diferentes; informe o artista para melhorar a precisão. As palavras `confirmar` e `confirm`, usadas sozinhas após `!sr`, ficam reservadas para a confirmação; para pedir uma música com esse título, inclua o artista.
 
 Exemplo: `!volume 30` ajusta para 30%; `!volume 0` silencia; `!volume 61` é recusado. O limite de 60 vale para comandos do bot, não para alterações manuais. O comando usa o dispositivo configurado em SPOTIFY_DEVICE_ID, ou o ativo quando não configurado, e as permissões OAuth existentes. O dispositivo precisa permitir controle de volume pela API. Consulte a [referência de volume do Spotify](https://developer.spotify.com/documentation/web-api/reference/set-volume-for-users-playback).
 

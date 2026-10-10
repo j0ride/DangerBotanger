@@ -30,6 +30,12 @@ class Track:
         return self.name + " - " + ", ".join(self.artists)
 
 
+@dataclass(frozen=True)
+class SearchSuggestion:
+    """Spotify's first playable result, awaiting explicit viewer confirmation."""
+    track: Track
+
+
 class Spotify:
     def __init__(self, client, oauth: OAuth, device_id=""):
         self.client, self.oauth, self.device_id = client, oauth, device_id
@@ -83,7 +89,7 @@ class Spotify:
         if not candidates:
             return None
         score, track = max(candidates, key=lambda candidate: candidate[0])
-        return track if score >= 0.90 else None
+        return track if score >= 0.90 else SearchSuggestion(candidates[0][1])
 
     @staticmethod
     def words(text):

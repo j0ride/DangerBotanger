@@ -8,7 +8,7 @@ from dangerbot.config import Config
 from dangerbot.i18n import MESSAGES
 from dangerbot.queue import RequestQueue
 from dangerbot.service import Policy, SongRequests, User
-from dangerbot.spotify import Spotify, SpotifyError
+from dangerbot.spotify import SearchSuggestion, Spotify, SpotifyError
 from test_bot import TRACK, config
 
 
@@ -45,9 +45,14 @@ class SearchTests(unittest.IsolatedAsyncioTestCase):
                 self.assertEqual(calls[0].url.params["q"], query)
                 self.assertEqual(calls[0].url.params["limit"], "10")
 
-    async def test_unrelated_results_do_not_enter_queue_or_consume_cooldown(self):
-        async with httpx.AsyncClient(transport=httpx.MockTransport(lambda _: httpx.Response(
-                200, json={"tracks": {"items": [item("Duality", "Slipknot")]}}))) as client:
+    async def test_unrelated_results_require_confirmation_without_consuming_cooldown(self):
+        def transport(request):
+            if request.url.path.endswith("/search"):
+                return httpx.Response(200, json={"tracks": {"items": [item("Duality", "Slipknot")]}})
+            if request.url.path.endswith("/queue"):
+                return httpx.Response(200, json={"queue": []})
+            return httpx.Response(204)
+        async with httpx.AsyncClient(transport=httpx.MockTransport(transport)) as client:
             queue = RequestQueue(":memory:")
             self.addCleanup(queue.close)
             policy = Policy(config())
@@ -56,18 +61,19 @@ class SearchTests(unittest.IsolatedAsyncioTestCase):
                 service.language = language
                 reply = await service.handle(User("viewer"), "!sr snuff Slipknot")
                 self.assertIn("!sr", reply)
+                self.assertIn("Duality", reply)
                 self.assertEqual(queue.count(), 0)
                 self.assertEqual(policy.users, {})
                 self.assertEqual(policy.global_until, 0)
 
-    async def test_exact_title_preferred_and_wrong_artist_rejected(self):
+    async def test_exact_title_preferred_and_weak_matches_need_confirmation(self):
         results = [item("Snuff - Live", "Slipknot", "live"), item("Snuff", "Slipknot")]
         async with httpx.AsyncClient(transport=httpx.MockTransport(lambda _: httpx.Response(
                 200, json={"tracks": {"items": results}}))) as client:
             spotify = Spotify(client, Auth())
             self.assertEqual((await spotify.search("snuff Slipknot")).id, "correct")
-            self.assertIsNone(await spotify.search("snuff Pitty"))
-            self.assertIsNone(await spotify.search("Slipknot"))
+            self.assertIsInstance(await spotify.search("snuff Pitty"), SearchSuggestion)
+            self.assertIsInstance(await spotify.search("Slipknot"), SearchSuggestion)
 
     async def test_malformed_and_unplayable_results(self):
         for payload in [{}, {"tracks": {"items": None}}, {"tracks": {"items": [{}]}}]:
@@ -89,6 +95,90 @@ class CommandTests(unittest.IsolatedAsyncioTestCase):
                                               "is_playing": True}
         self.service = SongRequests(self.spotify, self.queue, Policy(config()))
         self.mod = User("mod", frozenset({"moderator"}))
+
+    def prepare_suggestion(self):
+        self.now = [100]
+        self.service.policy.clock = lambda: self.now[0]
+        self.suggested_track = replace(TRACK, name="Sadness and Sorrow", artists=("Example Performer",))
+        self.spotify.search.return_value = SearchSuggestion(self.suggested_track)
+        self.spotify.queue_snapshot.return_value = {"queue": []}
+        self.spotify.playback.return_value = None
+
+    async def test_informal_request_can_confirm_original_suggestion_without_new_search(self):
+        self.prepare_suggestion()
+        for language, confirmation in [("br", "confirmar"), ("en", "confirm")]:
+            with self.subTest(language=language):
+                self.queue.db.execute("DELETE FROM requests")
+                self.service.language = language
+                self.now[0] += 30
+                viewer = User("viewer")
+                reply = await self.service.handle(viewer, "!sr musica triste do naruto")
+                self.assertIn("Sadness and Sorrow", reply)
+                self.assertIn("!sr " + confirmation, reply)
+                self.assertEqual(self.queue.count(), 0)
+                self.assertLessEqual(len(reply), 350)
+                self.spotify.search.reset_mock()
+                reply = await self.service.handle(viewer, "!sr " + confirmation)
+                self.assertIn("Sadness and Sorrow", reply)
+                self.assertEqual(self.queue.count(), 1)
+                self.spotify.search.assert_not_awaited()
+                self.assertEqual(self.service.suggestions, {})
+                self.assertEqual(self.service.policy.users["viewer"], self.now[0] + 30)
+
+    async def test_suggestion_belongs_to_requester_and_expires_at_sixty_seconds(self):
+        self.prepare_suggestion()
+        viewer = User("viewer")
+        await self.service.handle(viewer, "!sr musica triste do naruto")
+        self.assertIn("sugestão ativa", await self.service.handle(User("other"), "!sr confirmar"))
+        self.now[0] = 160
+        self.assertIn("expirado", await self.service.handle(viewer, "!sr confirmar"))
+        self.assertEqual(self.queue.count(), 0)
+
+    async def test_new_request_replaces_or_clears_previous_suggestion(self):
+        self.prepare_suggestion()
+        viewer = User("viewer")
+        await self.service.handle(viewer, "!sr first description")
+        replacement = replace(TRACK, id="second", uri="spotify:track:second", name="Other Song")
+        self.spotify.search.return_value = SearchSuggestion(replacement)
+        self.assertIn("Other Song", await self.service.handle(viewer, "!sr second description"))
+        self.spotify.search.return_value = None
+        await self.service.handle(viewer, "!sr missing song")
+        self.assertIn("sugestão ativa", await self.service.handle(viewer, "!sr confirmar"))
+        self.assertEqual(self.queue.count(), 0)
+
+    async def test_confirmation_rechecks_blacklist_and_duplicates(self):
+        self.prepare_suggestion()
+        viewer = User("viewer")
+        await self.service.handle(viewer, "!sr description")
+        self.service.policy.config.blocked_tracks = frozenset({TRACK.id})
+        self.assertIn("bloqueada", await self.service.handle(viewer, "!sr confirmar"))
+        self.assertEqual(self.queue.count(), 0)
+        self.service.policy.config.blocked_tracks = frozenset()
+        self.spotify.queue_snapshot.return_value = {"queue": [{"uri": TRACK.uri}]}
+        self.assertIn("já está", await self.service.handle(viewer, "!sr confirmar"))
+        self.assertEqual(self.queue.count(), 0)
+
+    async def test_confirmation_rechecks_permissions_cooldown_and_queue_limits(self):
+        self.prepare_suggestion()
+        viewer = User("viewer")
+        await self.service.handle(viewer, "!sr description")
+        self.service.policy.config.permission = "moderator"
+        self.assertIn("permissão", await self.service.handle(viewer, "!sr confirmar"))
+        self.service.policy.config.permission = "everyone"
+        self.service.policy.global_until = 105
+        self.assertIn("Aguarde 5s", await self.service.handle(viewer, "!sr confirmar"))
+        self.now[0] = 105
+        self.service.policy.config.max_user_requests = 1
+        self.queue.add(viewer.name, replace(TRACK, id="another", uri="spotify:track:another"))
+        self.assertIn("1 pedidos", await self.service.handle(viewer, "!sr confirmar"))
+        self.assertEqual(self.queue.count(), 1)
+
+    async def test_blocked_suggestion_is_not_offered(self):
+        self.prepare_suggestion()
+        self.service.policy.config.blocked_artists = frozenset({"artist1"})
+        self.assertIn("bloqueado", await self.service.handle(User("viewer"), "!sr description"))
+        self.assertEqual(self.service.suggestions, {})
+        self.assertEqual(self.queue.count(), 0)
 
     async def test_aliases_return_same_playback_response_in_both_languages(self):
         for language in ["br", "en"]:
