@@ -1,6 +1,6 @@
 # DangerBotanger
 
-Branch experimental `test/twitch-me-messages`: todas as respostas no chat são enviadas como ações `/me` (CTCP ACTION no IRC), mantendo a menção ao solicitante. A janela mostra **Teste /me** para identificar esta versão. A aparência e a cor dependem do cliente de chat e das extensões; o bot envia a ação, mas não define a cor do texto. Teste no chat usado na sua live antes de integrar em `main`. O pacote de teste fica em `dist/DangerBotanger-me-test-Windows-x64.zip`; as configurações são as mesmas da versão normal, então execute somente uma versão por vez.
+Todas as respostas no chat são enviadas como ações `/me` (CTCP ACTION no IRC), mantendo a menção ao solicitante. A aparência e a cor dependem do cliente de chat e das extensões; o bot envia a ação, mas não define a cor do texto.
 
 Bot Twitch em Python: `!sr <música e artista>` compara até 10 resultados na Spotify Web API, aplica regras e salva o pedido na fila local. Um worker envia os pedidos em ordem à fila do Spotify. `!np` consulta a reprodução atual e `!queue` consulta a fila real do Spotify.
 
@@ -39,7 +39,7 @@ A Web API documentada oferece consulta e adição à fila, mas não remoção de
 
 ### Executável para compartilhar (Windows 64 bits)
 
-Distribua `dist/DangerBotanger-0.1.0-Windows-x64.zip`. Ele contém `DangerBotanger.exe` e um guia de primeiro uso. Seu amigo extrai o ZIP, abre o executável, preenche suas credenciais e autoriza as contas pela interface. Python e as dependências já estão dentro do executável.
+Distribua `dist/DangerBotanger-0.1.1-Windows-x64.zip`. Ele contém `DangerBotanger.exe` e um guia de primeiro uso. Seu amigo extrai o ZIP, abre o executável, preenche suas credenciais e autoriza as contas pela interface. Python e as dependências já estão dentro do executável.
 
 A versão empacotada salva o `.env`, os tokens, o certificado e a fila em `%LOCALAPPDATA%\DangerBotanger`, independentemente da pasta em que o executável foi colocado. Atualizar o executável preserva esses dados. A versão em código continua usando a pasta do projeto. Para migrar os dados atuais, feche o bot e copie seu `.env` e sua pasta `data/` para a pasta de configurações do executável; confira caminhos de certificados personalizados. Compartilhe somente o ZIP, sem seus dados locais.
 

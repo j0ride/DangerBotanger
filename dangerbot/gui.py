@@ -45,7 +45,7 @@ class Desktop:
         self.status = tk.StringVar(value="Bot parado — configure as contas para começar.")
         self.auth_status = tk.StringVar()
         self.show_secrets = tk.BooleanVar(value=False)
-        root.title("DangerBotanger — Teste /me")
+        root.title("DangerBotanger — Configuração e controle")
         root.geometry("1000x820")
         root.minsize(850, 680)
         style = ttk.Style(root)

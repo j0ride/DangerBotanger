@@ -1,6 +1,5 @@
-DANGERBOTANGER 0.1.0 — WINDOWS 64 BITS
+DANGERBOTANGER 0.1.1 — WINDOWS 64 BITS
 
-VERSÃO EXPERIMENTAL /me — branch test/twitch-me-messages
 Todas as respostas são enviadas como ações /me. A cor/aparência depende
 do cliente de chat e das extensões. Execute somente uma versão do bot por vez.
 
