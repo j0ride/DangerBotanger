@@ -1,9 +1,29 @@
 """Chat response catalog. Music metadata is never translated."""
 
 MESSAGES = {
+    "sr_link_invalid": {
+        "br": "Envie um link de vídeo do YouTube ou de uma faixa do Spotify. Playlists e álbuns não são aceitos.",
+        "en": "Send a YouTube video link or a Spotify track link. Playlists and albums are not supported."
+    },
+    "sr_youtube_unavailable": {
+        "br": "Não consegui consultar o título no YouTube. Confira se o vídeo é público ou peça com !sr <música e artista>.",
+        "en": "Could not retrieve the YouTube title. Check that the video is public or use !sr <song and artist>."
+    },
+    "sr_spotify_link_unavailable": {
+        "br": "Não consegui abrir o link curto do Spotify. Envie o link completo open.spotify.com/track/... da música.",
+        "en": "Could not open the Spotify short link. Send the full open.spotify.com/track/... song link."
+    },
+    "sr_track_unavailable": {
+        "br": "Essa faixa não foi encontrada ou não está disponível no Spotify. Tente outra música.",
+        "en": "This track was not found or is unavailable on Spotify. Try another song."
+    },
+    "sr_link_long": {
+        "br": "Link muito longo (máximo 2048 caracteres). Remova os parâmetros extras do link.",
+        "en": "Link is too long (maximum 2048 characters). Remove extra link parameters."
+    },
     "help_commands": {
-        "br": "Comandos: !help (ajuda); !sr <música e artista> (pedir); !sr confirmar (aceitar sugestão); !queue [página] (fila); !np / !song / !currentsong (tocando agora). Mods/dono: !play (retomar); !pause (pausar); !skip (pular); !volume <0-60> (volume); !setlang br|en (idioma).",
-        "en": "Commands: !help (help); !sr <song and artist> (request); !sr confirm (accept suggestion); !queue [page] (queue); !np / !song / !currentsong (now playing). Mods/owner: !play (resume); !pause (pause); !skip (skip); !volume <0-60> (volume); !setlang br|en (language)."
+        "br": "Comandos: !help (ajuda); !sr <música e artista ou link YouTube/Spotify> (pedir); !sr confirmar (aceitar sugestão); !queue [página] (fila); !np / !song / !currentsong (tocando agora). Mods/dono: !play (retomar); !pause (pausar); !skip (pular); !volume <0-60> (volume); !setlang br|en (idioma).",
+        "en": "Commands: !help (help); !sr <song and artist or YouTube/Spotify link> (request); !sr confirm (accept suggestion); !queue [page] (queue); !np / !song / !currentsong (now playing). Mods/owner: !play (resume); !pause (pause); !skip (skip); !volume <0-60> (volume); !setlang br|en (language)."
     },
     "playback_permission": {
         "br": "Somente moderadores e o dono do canal podem pausar ou retomar a reprodução.",

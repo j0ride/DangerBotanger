@@ -4,11 +4,16 @@ Todas as respostas no chat são enviadas como ações `/me` (CTCP ACTION no IRC)
 
 Bot Twitch em Python: `!sr <música e artista>` compara até 10 resultados na Spotify Web API, aplica regras e salva o pedido na fila local. Um worker envia os pedidos em ordem à fila do Spotify. `!np` consulta a reprodução atual e `!queue` consulta a fila real do Spotify.
 
+Links do YouTube (`youtube.com/watch`, `youtu.be`, Shorts, live e embed) usam o título público via oEmbed, removendo indicações como “Official Video”, “Lyrics” e “4K Remaster”. A busca continua comparando os resultados do Spotify e pedindo confirmação quando necessário. O áudio reproduzido vem do Spotify; a versão encontrada pode diferir do vídeo. Vídeos privados, removidos ou com metadados indisponíveis geram uma orientação para pedir por nome. Não é necessário configurar uma chave do YouTube.
+
+Links de faixas `open.spotify.com/track/...`, inclusive com prefixo de idioma, e URIs `spotify:track:...` consultam diretamente a [faixa por ID](https://developer.spotify.com/documentation/web-api/reference/get-track). Links curtos `spotify.link/...` são resolvidos quando redirecionam para uma faixa. Playlists, álbuns e links de outros serviços são recusados. Todos os pedidos respeitam as mesmas regras de permissão, cooldown, bloqueios, duração e fila. Texto tem limite de 200 caracteres; links, de 2048.
+
 Comandos no chat:
 
 | Comando | Ação | Permissão |
 | --- | --- | --- |
 | `!sr <música e artista>` | Solicita música | Configurada em REQUEST_PERMISSION |
+| `!sr <link YouTube ou Spotify>` | Busca pelo título do vídeo ou solicita a faixa exata do Spotify | Configurada em REQUEST_PERMISSION |
 | `!sr confirmar` / `!sr confirm` | Aceita a sugestão pendente do seu último pedido, em até 60 segundos | Configurada em REQUEST_PERMISSION |
 | `!help` | Lista os comandos e indica quais são restritos a moderadores/dono | Todos |
 | `!np` / `!song` / `!currentsong` | Mostra música, artista e quem pediu via !sr, quando identificado; informa se está pausado | Todos |
@@ -39,7 +44,7 @@ A Web API documentada oferece consulta e adição à fila, mas não remoção de
 
 ### Executável para compartilhar (Windows 64 bits)
 
-Distribua `dist/DangerBotanger-0.1.1-Windows-x64.zip`. Ele contém `DangerBotanger.exe` e um guia de primeiro uso. Seu amigo extrai o ZIP, abre o executável, preenche suas credenciais e autoriza as contas pela interface. Python e as dependências já estão dentro do executável.
+Distribua `dist/DangerBotanger-0.1.2-Windows-x64.zip`. Ele contém `DangerBotanger.exe` e um guia de primeiro uso. Seu amigo extrai o ZIP, abre o executável, preenche suas credenciais e autoriza as contas pela interface. Python e as dependências já estão dentro do executável.
 
 A versão empacotada salva o `.env`, os tokens, o certificado e a fila em `%LOCALAPPDATA%\DangerBotanger`, independentemente da pasta em que o executável foi colocado. Atualizar o executável preserva esses dados. A versão em código continua usando a pasta do projeto. Para migrar os dados atuais, feche o bot e copie seu `.env` e sua pasta `data/` para a pasta de configurações do executável; confira caminhos de certificados personalizados. Compartilhe somente o ZIP, sem seus dados locais.
 

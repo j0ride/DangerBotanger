@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from .spotify import SearchSuggestion, Spotify, SpotifyError
 from .oauth import OAuthError
 from .i18n import MessageError, error_message, translate
+from .links import is_link, parse_link, spotify_short_track, youtube_title
 
 COMMANDS = frozenset({"!sr", "!queue", "!np", "!song", "!currentsong", "!skip", "!setlang", "!volume", "!help", "!play", "!pause"})
 
@@ -71,6 +72,18 @@ class SongRequests:
 
     def reply(self, key, **values):
         return translate(self.language, key, **values)
+
+    async def resolve_request(self, query):
+        link = parse_link(query)
+        if link is None:
+            return await self.spotify.search(query)
+        provider, identifier = link
+        if provider == "youtube":
+            title = await youtube_title(self.spotify.client, identifier)
+            return await self.spotify.search(title)
+        if provider == "spotify_short":
+            identifier = await spotify_short_track(self.spotify.client, identifier)
+        return await self.spotify.track(identifier)
 
     async def handle(self, user, message):
         command, _, query = message.strip().partition(" ")
@@ -175,8 +188,8 @@ class SongRequests:
             return None
         if not query.strip():
             return self.reply("sr_usage")
-        if len(query) > 200:
-            return self.reply("sr_long")
+        if len(query) > (2048 if is_link(query.strip()) else 200):
+            return self.reply("sr_link_long" if is_link(query.strip()) else "sr_long")
         async with self.lock:
             now = self.policy.clock()
             self.suggestions = {name: suggestion for name, suggestion in self.suggestions.items()
@@ -196,7 +209,7 @@ class SongRequests:
                         return self.reply("sr_no_suggestion")
                     track = pending[0]
                 else:
-                    result = await self.spotify.search(query.strip())
+                    result = await self.resolve_request(query.strip())
                     if result is None:
                         return self.reply("sr_empty")
                     suggestion = isinstance(result, SearchSuggestion)
@@ -223,7 +236,7 @@ class SongRequests:
                 self.policy.consume(user)
                 self.suggestions.pop(user_key, None)
                 return self.reply("sr_received", name=track.name, artists=", ".join(track.artists))
-            except (RequestRejected, SpotifyError, OAuthError) as error:
+            except (MessageError, SpotifyError, OAuthError) as error:
                 return error_message(self.language, error)
 
     async def dispatch_once(self):

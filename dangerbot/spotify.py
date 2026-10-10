@@ -5,7 +5,7 @@ import re
 import unicodedata
 import httpx
 from .oauth import OAuth
-from .i18n import translate
+from .i18n import MessageError, translate
 
 
 class SpotifyError(Exception):
@@ -40,7 +40,7 @@ class Spotify:
     def __init__(self, client, oauth: OAuth, device_id=""):
         self.client, self.oauth, self.device_id = client, oauth, device_id
 
-    async def request(self, method, path, *, expect_json=True, allow_empty=False, **kwargs):
+    async def request(self, method, path, *, expect_json=True, allow_empty=False, not_found_key=None, **kwargs):
         for attempt in range(2):
             token = await self.oauth.access_token(force=attempt == 1)
             try:
@@ -63,6 +63,8 @@ class Spotify:
             if response.status_code == 429:
                 raise SpotifyError("Spotify limitou as requisições.",
                                    retry_after=int(response.headers.get("Retry-After", "30")))
+            if response.status_code == 404 and not_found_key:
+                raise MessageError(not_found_key)
             messages = {401: "Autorize o Spotify novamente.", 403: "Spotify recusou acesso: verifique Premium e permissões.",
                         404: "Abra o Spotify e inicie a reprodução em um dispositivo."}
             raise SpotifyError(messages.get(response.status_code, "Spotify indisponível."),
@@ -80,9 +82,7 @@ class Spotify:
             for item in items:
                 if item.get("is_playable") is False or item.get("is_local"):
                     continue
-                track = Track(item["id"], item["uri"], item["name"],
-                              tuple(a["name"] for a in item["artists"]),
-                              tuple(a["id"] for a in item["artists"]), item["duration_ms"], item["explicit"])
+                track = self.parse_track(item)
                 candidates.append((self.match_score(query, track), track))
         except (KeyError, TypeError, AttributeError):
             raise SpotifyError("Spotify retornou uma resposta inválida. Tente novamente.") from None
@@ -90,6 +90,29 @@ class Spotify:
             return None
         score, track = max(candidates, key=lambda candidate: candidate[0])
         return track if score >= 0.90 else SearchSuggestion(candidates[0][1])
+
+    @staticmethod
+    def parse_track(item):
+        try:
+            track = Track(item["id"], item["uri"], item["name"],
+                          tuple(a["name"] for a in item["artists"]),
+                          tuple(a["id"] for a in item["artists"]), item["duration_ms"], item["explicit"])
+            if (not all(isinstance(value, str) and value for value in
+                        (track.id, track.uri, track.name, *track.artists, *track.artist_ids))
+                    or not track.artists or not isinstance(track.duration_ms, int)
+                    or isinstance(track.duration_ms, bool) or track.duration_ms < 0
+                    or not isinstance(track.explicit, bool)):
+                raise ValueError()
+            return track
+        except (KeyError, TypeError, AttributeError, ValueError):
+            raise SpotifyError("Spotify retornou uma resposta inválida. Tente novamente.") from None
+
+    async def track(self, identifier):
+        data = await self.request("GET", "tracks/" + identifier, not_found_key="sr_track_unavailable")
+        track = self.parse_track(data)
+        if data.get("is_playable") is False or data.get("is_local"):
+            raise MessageError("sr_track_unavailable")
+        return track
 
     @staticmethod
     def words(text):
