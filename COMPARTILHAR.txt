@@ -1,4 +1,4 @@
-DANGERBOTANGER 0.1.6 — WINDOWS 64 BITS
+DANGERBOTANGER 0.1.7 — WINDOWS 64 BITS
 
 Todas as respostas são enviadas como ações /me. A cor/aparência depende
 do cliente de chat e das extensões. Execute somente uma versão do bot por vez.

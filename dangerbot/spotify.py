@@ -122,7 +122,11 @@ class Spotify:
         compact_names = ["".join(words) for words in name_words]
         compact_names.extend("".join(words[1:]) for words in name_words
                              if len(words) > 1 and words[0] == "the")
-        direct = max((cls.word_score("".join(words), name) for name in compact_names), default=0)
+        # Initialisms must match exactly; never guess a typo in a short alias.
+        # Use the returned artist's full name, rather than a global alias lookup.
+        initialisms = {"".join(word[0] for word in words) for words in name_words if len(words) >= 3}
+        direct = max(float("".join(words) in initialisms),
+                     max((cls.word_score("".join(words), name) for name in compact_names), default=0))
         # Cover every requested artist, in any order. Spaces within a name may differ.
         words = [word for index, word in enumerate(words)
                  if not (0 < index < len(words) - 1 and word in {"e", "and", "feat", "ft", "featuring", "x"})]
@@ -134,8 +138,9 @@ class Spotify:
             if start not in scores:
                 continue
             for end in range(start + 1, min(len(words), start + chunk_limit) + 1):
-                score = max((cls.word_score("".join(words[start:end]), name)
-                             for name in compact_names), default=0)
+                chunk = "".join(words[start:end])
+                score = max(float(chunk in initialisms),
+                            max((cls.word_score(chunk, name) for name in compact_names), default=0))
                 if score:
                     scores[end] = max(scores.get(end, 0), min(scores[start], score))
         return max(direct, scores.get(len(words), 0))
@@ -146,11 +151,12 @@ class Spotify:
         candidate, candidate_guests = song_and_guests(track.name)
         if version_words(song) != version_words(candidate):
             return 0
-        title_words, candidate_words = cls.words(song), cls.words(candidate)
-        # Avoid treating a short title as an unrelated longer song name.
-        if not title_words or not candidate_words or min(len(title_words), len(candidate_words)) / max(len(title_words), len(candidate_words)) < 0.8:
-            return 0
-        title_score = cls.phrase_score(title_words, candidate_words)
+        # Punctuation and printed romanizations are alternative title spellings.
+        title_score = max((cls.phrase_score(title_words, candidate_words)
+                           for title_words in cls.title_words(song)
+                           for candidate_words in cls.title_words(candidate)
+                           if title_words and candidate_words
+                           and min(len(title_words), len(candidate_words)) / max(len(title_words), len(candidate_words)) >= 0.8), default=0)
         artist_score = cls.artist_score(parsed.artist, track.artists)
         guest_score = cls.artist_score(guests, (*track.artists, candidate_guests)) if guests else 1
         return min(title_score, artist_score, guest_score)
@@ -185,6 +191,32 @@ class Spotify:
         normalized = re.sub(r"(?<=[^\W\d_])\$|\$(?=[^\W\d_])", "s", normalized)
         return re.findall(r"[^\W_]+", "".join(c for c in normalized if not unicodedata.combining(c)))
 
+    @classmethod
+    def title_words(cls, text):
+        """Keep the title and alternatives explicitly supported by its spelling."""
+        variants = [text]
+        bilingual = re.fullmatch(r"([^()\[\]]+?)\s*(?:\(([^()]*)\)|\[([^\[\]]*)\])(.*)", text)
+        if bilingual:
+            original, parenthesized, bracketed, suffix = bilingual.groups()
+            alternative = parenthesized if parenthesized is not None else bracketed
+            def latin_only(value):
+                letters = [char for char in value if char.isalpha()]
+                return bool(letters) and all("LATIN" in unicodedata.name(char, "") for char in letters)
+            def non_latin_only(value):
+                letters = [char for char in value if char.isalpha()]
+                return bool(letters) and all("LATIN" not in unicodedata.name(char, "") for char in letters)
+            if (version_words(original) == version_words(alternative)
+                    and not COLLABORATION.search(original + " " + alternative)
+                    and ((non_latin_only(original) and latin_only(alternative))
+                         or (latin_only(original) and non_latin_only(alternative)))):
+                # Preserve both spellings and every suffix, including live/remix.
+                variants.extend((original + " " + suffix, alternative + " " + suffix))
+        for variant in tuple(variants):
+            # Join punctuation within a name: A-HA -> AHA, AC/DC -> ACDC.
+            # Spaces remain significant; don't turn unrelated titles into one word.
+            variants.append(re.sub(r"(?<=[^\W\d_])[-‐‑–—/.'’](?=[^\W\d_])", "", variant))
+        return [list(words) for words in dict.fromkeys(tuple(cls.words(variant)) for variant in variants)]
+
     @staticmethod
     def word_score(left, right):
         if left == right:
@@ -216,6 +248,8 @@ class Spotify:
         """Match consecutive words; short words must match exactly, others tolerate small typos."""
         if not query or len(query) > len(text):
             return 0
+        if version_words(" ".join(query)) != version_words(" ".join(text)):
+            return 0
         best = 0
         for start in range(len(text) - len(query) + 1):
             ratios = [cls.word_score(left, right)
@@ -233,6 +267,8 @@ class Spotify:
         requested words. Unlike a partial token-set ratio, missing terms reject.
         """
         if not query or len(query) > len(text) or len(query) / len(text) < 0.8:
+            return 0
+        if version_words(" ".join(query)) != version_words(" ".join(text)):
             return 0
         edges = [sorted((index for index, word in enumerate(text) if cls.word_score(term, word)),
                         key=lambda index: cls.word_score(term, text[index]), reverse=True)
@@ -258,8 +294,7 @@ class Spotify:
         return score if ordered else score * 0.98
 
     @classmethod
-    def coverage_score(cls, words, track):
-        title = cls.words(track.name)
+    def coverage_score(cls, words, track, title):
         best = cls.term_score(words, title)
         # Artist terms may be at the beginning, end or between title terms.
         artist_span_limit = sum(len(cls.words(name)) for name in track.artists) + len(track.artists) + 1
@@ -278,7 +313,11 @@ class Spotify:
 
     @classmethod
     def match_score(cls, query, track):
-        words, title = cls.words(query), cls.words(track.name)
+        words = cls.words(query)
+        return max((cls.match_title_score(words, title, track) for title in cls.title_words(track.name)), default=0)
+
+    @classmethod
+    def match_title_score(cls, words, title, track):
         best = cls.phrase_score(words, title)
         # Accept either song + artist or artist + song, requiring both parts to match.
         for split in range(1, len(words)):
@@ -288,7 +327,7 @@ class Spotify:
                 if min(title_score, artist_score) >= 0.85:
                     best = max(best, 0.75 * title_score + 0.25 * artist_score)
         if best < 1:
-            best = max(best, cls.coverage_score(words, track))
+            best = max(best, cls.coverage_score(words, track, title))
         # A conversational "I'm" may precede a remembered title. Remove it only
         # when at least two title words AND the named artist still match.
         if len(words) >= 4 and words[0] == "im" and "im" not in title:
