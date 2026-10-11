@@ -92,8 +92,9 @@ class Spotify:
         candidates = await self.search_candidates(query)
         if not candidates:
             return None
-        track = max(candidates, key=lambda candidate: self.match_score(query, candidate))
-        return track if self.match_score(query, track) >= 0.90 else SearchSuggestion(candidates[0])
+        score, track = max(((self.match_score(query, track), track) for track in candidates),
+                           key=lambda candidate: candidate[0])
+        return track if score >= 0.90 else SearchSuggestion(candidates[0])
 
     async def search_youtube(self, video_title):
         query = clean_video_title(video_title)
@@ -117,7 +118,10 @@ class Spotify:
     def artist_score(cls, artist, names):
         artist = COLLABORATION.sub(" & ", artist)
         words = cls.words(artist)
-        compact_names = ["".join(cls.words(name)) for name in names if name]
+        name_words = [cls.words(name) for name in names if name]
+        compact_names = ["".join(words) for words in name_words]
+        compact_names.extend("".join(words[1:]) for words in name_words
+                             if len(words) > 1 and words[0] == "the")
         direct = max((cls.word_score("".join(words), name) for name in compact_names), default=0)
         # Cover every requested artist, in any order. Spaces within a name may differ.
         words = [word for index, word in enumerate(words)
@@ -177,12 +181,19 @@ class Spotify:
     @staticmethod
     def words(text):
         normalized = unicodedata.normalize("NFKD", text.casefold())
+        normalized = re.sub(r"\bi['’]m\b", "im", normalized)
+        normalized = re.sub(r"(?<=[^\W\d_])\$|\$(?=[^\W\d_])", "s", normalized)
         return re.findall(r"[^\W_]+", "".join(c for c in normalized if not unicodedata.combining(c)))
 
     @staticmethod
     def word_score(left, right):
         if left == right:
             return 1.0
+        # Elongated spelling (slayyyyyyer) should not count as several typos.
+        if min(len(left), len(right)) >= 4:
+            left, right = (re.sub(r"([^\W\d_])\1{2,}", r"\1\1", word) for word in (left, right))
+            if left == right:
+                return 0.96
         if min(len(left), len(right)) < 4 or abs(len(left) - len(right)) > 1:
             return 0
         if len(left) == len(right):
@@ -215,6 +226,57 @@ class Spotify:
         return best
 
     @classmethod
+    def term_score(cls, query, text):
+        """Match every query term to a distinct title term, regardless of order.
+
+        Bipartite augmenting paths prevent one result word from satisfying several
+        requested words. Unlike a partial token-set ratio, missing terms reject.
+        """
+        if not query or len(query) > len(text) or len(query) / len(text) < 0.8:
+            return 0
+        edges = [sorted((index for index, word in enumerate(text) if cls.word_score(term, word)),
+                        key=lambda index: cls.word_score(term, text[index]), reverse=True)
+                 for term in query]
+        matches = {}
+        def assign(index, seen):
+            for target in edges[index]:
+                if target in seen:
+                    continue
+                seen.add(target)
+                if target not in matches or assign(matches[target], seen):
+                    matches[target] = index
+                    return True
+            return False
+        for index in sorted(range(len(query)), key=lambda index: len(edges[index])):
+            if not assign(index, set()):
+                return 0
+        average = sum(cls.word_score(query[index], text[target]) for target, index in matches.items()) / len(query)
+        score = 0.95 * average + 0.05 * len(query) / len(text)
+        # Prefer the original word order when several tracks contain the same terms.
+        ordered = any(all(cls.word_score(left, right) for left, right in zip(query, text[start:]))
+                      for start in range(len(text) - len(query) + 1))
+        return score if ordered else score * 0.98
+
+    @classmethod
+    def coverage_score(cls, words, track):
+        title = cls.words(track.name)
+        best = cls.term_score(words, title)
+        # Artist terms may be at the beginning, end or between title terms.
+        artist_span_limit = sum(len(cls.words(name)) for name in track.artists) + len(track.artists) + 1
+        for start in range(len(words)):
+            for end in range(start + 1, min(len(words), start + artist_span_limit) + 1):
+                song = words[:start] + words[end:]
+                if not song:
+                    continue
+                artist_score = cls.artist_score(" ".join(words[start:end]), track.artists)
+                if artist_score < 0.85:
+                    continue
+                title_score = cls.term_score(song, title)
+                if title_score >= 0.85:
+                    best = max(best, 0.75 * title_score + 0.25 * artist_score)
+        return best
+
+    @classmethod
     def match_score(cls, query, track):
         words, title = cls.words(query), cls.words(track.name)
         best = cls.phrase_score(words, title)
@@ -225,6 +287,17 @@ class Spotify:
                 artist_score = cls.artist_score(" ".join(artist), track.artists)
                 if min(title_score, artist_score) >= 0.85:
                     best = max(best, 0.75 * title_score + 0.25 * artist_score)
+        if best < 1:
+            best = max(best, cls.coverage_score(words, track))
+        # A conversational "I'm" may precede a remembered title. Remove it only
+        # when at least two title words AND the named artist still match.
+        if len(words) >= 4 and words[0] == "im" and "im" not in title:
+            trimmed = words[1:]
+            for split in range(2, len(trimmed)):
+                title_score = cls.term_score(trimmed[:split], title)
+                artist_score = cls.artist_score(" ".join(trimmed[split:]), track.artists)
+                if min(title_score, artist_score) >= 0.85:
+                    best = max(best, 0.97 * (0.75 * title_score + 0.25 * artist_score))
         return best
 
     async def set_volume(self, volume):
