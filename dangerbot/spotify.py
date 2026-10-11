@@ -1,6 +1,5 @@
 from dataclasses import dataclass
 from json import JSONDecodeError
-from difflib import SequenceMatcher
 import re
 import unicodedata
 import httpx
@@ -117,17 +116,25 @@ class Spotify:
     @classmethod
     def artist_score(cls, artist, names):
         artist = COLLABORATION.sub(" & ", artist)
-        def name_score(left, right):
-            left, right = cls.words(left), cls.words(right)
-            if not left or not right or min(len(left), len(right)) / max(len(left), len(right)) < 0.8:
-                return 0
-            return cls.phrase_score(left, right)
-        direct = max((name_score(artist, name) for name in (*names, " ".join(names))), default=0)
-        parts = re.split(r"\s*(?:&|,)\s*|\s+[xX]\s+", artist)
-        if len(parts) > 1 and all(parts):
-            separate = min(max((name_score(part, name) for name in names), default=0) for part in parts)
-            return max(direct, separate)
-        return direct
+        words = cls.words(artist)
+        compact_names = ["".join(cls.words(name)) for name in names if name]
+        direct = max((cls.word_score("".join(words), name) for name in compact_names), default=0)
+        # Cover every requested artist, in any order. Spaces within a name may differ.
+        words = [word for index, word in enumerate(words)
+                 if not (0 < index < len(words) - 1 and word in {"e", "and", "feat", "ft", "featuring", "x"})]
+        if not words:
+            return direct
+        scores = {0: 1.0}
+        chunk_limit = max((len(cls.words(name)) for name in names), default=1) + 1
+        for start in range(len(words)):
+            if start not in scores:
+                continue
+            for end in range(start + 1, min(len(words), start + chunk_limit) + 1):
+                score = max((cls.word_score("".join(words[start:end]), name)
+                             for name in compact_names), default=0)
+                if score:
+                    scores[end] = max(scores.get(end, 0), min(scores[start], score))
+        return max(direct, scores.get(len(words), 0))
 
     @classmethod
     def youtube_match_score(cls, parsed, track):
@@ -173,14 +180,34 @@ class Spotify:
         return re.findall(r"[^\W_]+", "".join(c for c in normalized if not unicodedata.combining(c)))
 
     @staticmethod
-    def phrase_score(query, text):
+    def word_score(left, right):
+        if left == right:
+            return 1.0
+        if min(len(left), len(right)) < 4 or abs(len(left) - len(right)) > 1:
+            return 0
+        if len(left) == len(right):
+            mismatches = [index for index, (a, b) in enumerate(zip(left, right)) if a != b]
+            if len(mismatches) == 1:
+                return 0.92
+            if (len(mismatches) == 2 and mismatches[1] == mismatches[0] + 1
+                    and left[mismatches[0]] == right[mismatches[1]]
+                    and left[mismatches[1]] == right[mismatches[0]]):
+                return 0.92
+        else:
+            short, long = sorted((left, right), key=len)
+            index = next((i for i, (a, b) in enumerate(zip(short, long)) if a != b), len(short))
+            if short[index:] == long[index + 1:]:
+                return 0.92
+        return 0
+
+    @classmethod
+    def phrase_score(cls, query, text):
         """Match consecutive words; short words must match exactly, others tolerate small typos."""
         if not query or len(query) > len(text):
             return 0
         best = 0
         for start in range(len(text) - len(query) + 1):
-            ratios = [1.0 if left == right else
-                      (SequenceMatcher(None, left, right).ratio() if min(len(left), len(right)) > 3 else 0)
+            ratios = [cls.word_score(left, right)
                       for left, right in zip(query, text[start:start + len(query)])]
             if min(ratios) >= 0.80:
                 # Prefer full titles over excerpts or versions with extra words.
@@ -195,7 +222,7 @@ class Spotify:
         for split in range(1, len(words)):
             for song, artist in ((words[:split], words[split:]), (words[split:], words[:split])):
                 title_score = cls.phrase_score(song, title)
-                artist_score = max((cls.phrase_score(artist, cls.words(name)) for name in track.artists), default=0)
+                artist_score = cls.artist_score(" ".join(artist), track.artists)
                 if min(title_score, artist_score) >= 0.85:
                     best = max(best, 0.75 * title_score + 0.25 * artist_score)
         return best

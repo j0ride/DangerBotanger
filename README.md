@@ -6,7 +6,7 @@ Bot Twitch em Python: `!sr <música e artista>` compara até 10 resultados na Sp
 
 Links do YouTube (`youtube.com/watch`, `youtu.be`, Shorts, live e embed) usam o título público via oEmbed. A limpeza reconhece “Official Video”, “MV”, “Visualizer”, “Lyrics”, “Letra/Tradução”, “1080p”, “4K Remaster” e combinações dessas indicações entre parênteses ou colchetes. Os padrões foram pesquisados no [youtube_title_parse](https://github.com/lttkgp/youtube_title_parse) e na [documentação de metadados do yt-dlp](https://github.com/yt-dlp/yt-dlp#modifying-metadata), com implementação própria e sem novas dependências.
 
-A busca do YouTube separa artista e música em formatos como `Artista - Música`, `Artista | Música`, `Artista "Música"` e `Música by Artista`, também aceitando a ordem invertida quando os resultados confirmam os dois campos. Créditos `feat.`, `ft.` e colaborações são comparados com os artistas da faixa ou com os convidados citados no título do Spotify. Título e artistas correspondentes entram diretamente; artistas incompatíveis, convidados ausentes ou versões diferentes continuam exigindo confirmação. Live, remix, cover, acústico e outras versões não são removidos pela limpeza. Anotações desconhecidas são preservadas. A busca por texto mantém seu comportamento anterior.
+A busca do YouTube separa artista e música em formatos como `Artista - Música`, `Artista | Música`, `Artista "Música"` e `Música by Artista`, também aceitando a ordem invertida quando os resultados confirmam os dois campos. Créditos `feat.`, `ft.` e colaborações são comparados com os artistas da faixa ou com os convidados citados no título do Spotify. Título e artistas correspondentes entram diretamente; artistas incompatíveis, convidados ausentes ou versões diferentes continuam exigindo confirmação. Live, remix, cover, acústico e outras versões não são removidos pela limpeza. Anotações desconhecidas são preservadas. A comparação de artistas também aceita variações de espaços e colaborações em outra ordem.
 
 O áudio reproduzido vem do Spotify; os metadados não garantem que a gravação seja idêntica à do vídeo. Vídeos privados, removidos ou com metadados indisponíveis geram uma orientação para pedir por nome. Não é necessário configurar uma chave do YouTube.
 
@@ -18,10 +18,10 @@ Comandos no chat:
 | --- | --- | --- |
 | `!sr <música e artista>` | Solicita música | Configurada em REQUEST_PERMISSION |
 | `!sr <link YouTube ou Spotify>` | Busca pelo título do vídeo ou solicita a faixa exata do Spotify | Configurada em REQUEST_PERMISSION |
-| `!sr confirmar` / `!sr confirm` | Aceita a sugestão pendente do seu último pedido, em até 60 segundos | Configurada em REQUEST_PERMISSION |
+| `!sim` | Aceita a sugestão pendente do seu último pedido, em até 60 segundos; sem sugestão ativa responde “Não te perguntei nada” | Configurada em REQUEST_PERMISSION |
 | `!help` | Lista os comandos e indica quais são restritos a moderadores/dono | Todos |
 | `!np` / `!song` / `!currentsong` | Mostra música, artista e quem pediu via !sr, quando identificado; informa se está pausado | Todos |
-| `!queue [página]` | Mostra a fila real do Spotify, 5 itens por página | Todos |
+| `!queue [página]` / `!fila [página]` | Mostra a fila real do Spotify, 5 itens por página | Todos |
 | `!skip` | Pula a música atual no Spotify | Moderadores e dono do canal |
 | `!play` | Retoma a reprodução atual do Spotify, sem selecionar outra música | Moderadores e dono do canal |
 | `!pause` | Pausa a reprodução atual do Spotify | Moderadores e dono do canal |
@@ -30,7 +30,7 @@ Comandos no chat:
 
 O idioma padrão é `br`. A escolha de `!setlang` vale para todo o canal, muda imediatamente e fica salva em data/queue.sqlite3 para os próximos reinícios. Nomes de músicas e artistas não são traduzidos. Os comandos continuam com os mesmos nomes nos dois idiomas. Logs de terminal e instruções de configuração permanecem em português.
 
-A busca compara as palavras do título e do artista, aceitando ambas as ordens e ignorando diferenças de maiúsculas, acentos e pontuação. Pequenos erros de digitação em palavras longas são tolerados. Correspondências suficientes entram diretamente na fila. Quando nenhuma passa na validação, o bot mostra o primeiro resultado reproduzível do Spotify como sugestão, sem adicionar nem consumir cooldown. Isso permite pedidos por descrição, como `!sr musica triste do naruto`: se a sugestão estiver correta, o mesmo viewer envia `!sr confirmar` (ou `!sr confirm`) em até 60 segundos. A confirmação usa a faixa sugerida, sem uma nova busca, e verifica novamente permissões, cooldown, bloqueios, duplicatas e limites da fila. Outro pedido substitui a sugestão anterior; sugestões não sobrevivem ao reinício.
+A busca compara as palavras do título e do artista, aceitando ambas as ordens e ignorando diferenças de maiúsculas, acentos e pontuação. Uma troca, inclusão, remoção ou inversão de letras adjacentes é tolerada em palavras com pelo menos quatro caracteres. Nomes de artistas podem vir juntos ou separados (purplekiss/PURPLE KISS, chungha/CHUNG HA). Listas de artistas podem aparecer em qualquer ordem, mas todos os nomes pedidos precisam corresponder aos artistas da faixa. Correspondências suficientes entram diretamente na fila. Quando nenhuma passa na validação, o bot mostra o primeiro resultado reproduzível do Spotify como sugestão, sem adicionar nem consumir cooldown. Isso permite pedidos por descrição, como `!sr musica triste do naruto`: se a sugestão estiver correta, o mesmo viewer envia `!sim` em até 60 segundos. A confirmação usa a faixa sugerida, sem uma nova busca, e verifica novamente permissões, cooldown, bloqueios, duplicatas e limites da fila. Outro pedido substitui a sugestão anterior; sugestões não sobrevivem ao reinício.
 
 Se nenhum resultado for retornado, refine o pedido. A validação não garante identificar a intenção em pedidos ambíguos ou títulos iguais de artistas diferentes; informe o artista para melhorar a precisão. As palavras `confirmar` e `confirm`, usadas sozinhas após `!sr`, ficam reservadas para a confirmação; para pedir uma música com esse título, inclua o artista.
 
@@ -48,7 +48,7 @@ A Web API documentada oferece consulta e adição à fila, mas não remoção de
 
 ### Executável para compartilhar (Windows 64 bits)
 
-Distribua `dist/DangerBotanger-0.1.4-Windows-x64.zip`. Ele contém `DangerBotanger.exe` e um guia de primeiro uso. Seu amigo extrai o ZIP, abre o executável, preenche suas credenciais e autoriza as contas pela interface. Python e as dependências já estão dentro do executável.
+Distribua `dist/DangerBotanger-0.1.5-Windows-x64.zip`. Ele contém `DangerBotanger.exe` e um guia de primeiro uso. Seu amigo extrai o ZIP, abre o executável, preenche suas credenciais e autoriza as contas pela interface. Python e as dependências já estão dentro do executável.
 
 A versão empacotada salva o `.env`, os tokens, o certificado e a fila em `%LOCALAPPDATA%\DangerBotanger`, independentemente da pasta em que o executável foi colocado. Atualizar o executável preserva esses dados. A versão em código continua usando a pasta do projeto. Para migrar os dados atuais, feche o bot e copie seu `.env` e sua pasta `data/` para a pasta de configurações do executável; confira caminhos de certificados personalizados. Compartilhe somente o ZIP, sem seus dados locais.
 

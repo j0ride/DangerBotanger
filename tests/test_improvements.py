@@ -60,7 +60,7 @@ class SearchTests(unittest.IsolatedAsyncioTestCase):
             for language in ["br", "en"]:
                 service.language = language
                 reply = await service.handle(User("viewer"), "!sr snuff Slipknot")
-                self.assertIn("!sr", reply)
+                self.assertIn("!sim", reply)
                 self.assertIn("Duality", reply)
                 self.assertEqual(queue.count(), 0)
                 self.assertEqual(policy.users, {})
@@ -114,7 +114,7 @@ class CommandTests(unittest.IsolatedAsyncioTestCase):
                 viewer = User("viewer")
                 reply = await self.service.handle(viewer, "!sr musica triste do naruto")
                 self.assertIn("Sadness and Sorrow", reply)
-                self.assertIn("!sr " + confirmation, reply)
+                self.assertIn("!sim", reply)
                 self.assertEqual(self.queue.count(), 0)
                 self.assertLessEqual(len(reply), 350)
                 self.spotify.search.reset_mock()

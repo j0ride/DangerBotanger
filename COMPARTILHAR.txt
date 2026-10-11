@@ -1,4 +1,4 @@
-DANGERBOTANGER 0.1.4 — WINDOWS 64 BITS
+DANGERBOTANGER 0.1.5 — WINDOWS 64 BITS
 
 Todas as respostas são enviadas como ações /me. A cor/aparência depende
 do cliente de chat e das extensões. Execute somente uma versão do bot por vez.
@@ -33,8 +33,9 @@ Reconhece artista, música e participações; resultados consistentes entram dir
 Se o artista ou a versão não corresponder, o bot pede confirmação da sugestão.
 !sr <link Spotify> — pede a faixa exata; aceita links completos e spotify.link.
 Playlists e álbuns não são aceitos. A reprodução acontece no Spotify.
-!sr confirmar — aceita a sugestão do seu pedido em até 60 segundos.
-!queue [página] — mostra a fila.
+!sim — aceita a sugestão do seu pedido em até 60 segundos.
+Sem uma sugestão ativa para você, responde: Não te perguntei nada.
+!queue [página] ou !fila [página] — mostram a fila.
 !np, !song, !currentsong — mostram a música atual.
 
 Somente moderadores e dono do canal:

@@ -9,7 +9,7 @@ from .oauth import OAuthError
 from .i18n import MessageError, error_message, translate
 from .links import is_link, parse_link, spotify_short_track, youtube_title
 
-COMMANDS = frozenset({"!sr", "!queue", "!np", "!song", "!currentsong", "!skip", "!setlang", "!volume", "!help", "!play", "!pause"})
+COMMANDS = frozenset({"!sr", "!sim", "!queue", "!fila", "!np", "!song", "!currentsong", "!skip", "!setlang", "!volume", "!help", "!play", "!pause"})
 
 @dataclass(frozen=True)
 class User:
@@ -145,7 +145,7 @@ class SongRequests:
                 return response
             except (SpotifyError, OAuthError) as error:
                 return error_message(self.language, error)
-        if command.lower() == "!queue":
+        if command.lower() in {"!queue", "!fila"}:
             argument = query.strip()
             if argument and (not argument.isascii() or not argument.isdecimal()
                              or len(argument) > 6 or int(argument) <= 0):
@@ -184,9 +184,11 @@ class SongRequests:
                 except OAuthError as error:
                     return error_message(self.language, error)
                 return self.reply("skip_success")
-        if command.lower() != "!sr":
+        if command.lower() not in {"!sr", "!sim"}:
             return None
-        if not query.strip():
+        if command.lower() == "!sim" and query.strip():
+            return self.reply("sim_usage")
+        if command.lower() == "!sr" and not query.strip():
             return self.reply("sr_usage")
         if len(query) > (2048 if is_link(query.strip()) else 200):
             return self.reply("sr_link_long" if is_link(query.strip()) else "sr_long")
@@ -195,7 +197,9 @@ class SongRequests:
             self.suggestions = {name: suggestion for name, suggestion in self.suggestions.items()
                                 if suggestion[1] > now}
             user_key = user.name.casefold()
-            confirming = query.strip().casefold() in {"confirmar", "confirm"}
+            confirming = command.lower() == "!sim" or query.strip().casefold() in {"confirmar", "confirm"}
+            if command.lower() == "!sim" and user_key not in self.suggestions:
+                return self.reply("sim_no_question")
             if not confirming:
                 self.suggestions.pop(user_key, None)
             try:

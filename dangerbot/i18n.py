@@ -1,6 +1,14 @@
 """Chat response catalog. Music metadata is never translated."""
 
 MESSAGES = {
+    "sim_no_question": {
+        "br": "Não te perguntei nada",
+        "en": "I didn't ask you anything"
+    },
+    "sim_usage": {
+        "br": "Uso: !sim (sem argumentos).",
+        "en": "Usage: !sim (no arguments)."
+    },
     "sr_link_invalid": {
         "br": "Envie um link de vídeo do YouTube ou de uma faixa do Spotify. Playlists e álbuns não são aceitos.",
         "en": "Send a YouTube video link or a Spotify track link. Playlists and albums are not supported."
@@ -22,8 +30,8 @@ MESSAGES = {
         "en": "Link is too long (maximum 2048 characters). Remove extra link parameters."
     },
     "help_commands": {
-        "br": "Comandos: !help (ajuda); !sr <música e artista ou link YouTube/Spotify> (pedir); !sr confirmar (aceitar sugestão); !queue [página] (fila); !np / !song / !currentsong (tocando agora). Mods/dono: !play (retomar); !pause (pausar); !skip (pular); !volume <0-60> (volume); !setlang br|en (idioma).",
-        "en": "Commands: !help (help); !sr <song and artist or YouTube/Spotify link> (request); !sr confirm (accept suggestion); !queue [page] (queue); !np / !song / !currentsong (now playing). Mods/owner: !play (resume); !pause (pause); !skip (skip); !volume <0-60> (volume); !setlang br|en (language)."
+        "br": "Comandos: !help (ajuda); !sr <música e artista ou link YouTube/Spotify> (pedir); !sim (aceitar sugestão); !queue / !fila [página] (fila); !np / !song / !currentsong (tocando agora). Mods/dono: !play (retomar); !pause (pausar); !skip (pular); !volume <0-60> (volume); !setlang br|en (idioma).",
+        "en": "Commands: !help (help); !sr <song and artist or YouTube/Spotify link> (request); !sim (accept suggestion); !queue / !fila [page] (queue); !np / !song / !currentsong (now playing). Mods/owner: !play (resume); !pause (pause); !skip (skip); !volume <0-60> (volume); !setlang br|en (language)."
     },
     "playback_permission": {
         "br": "Somente moderadores e o dono do canal podem pausar ou retomar a reprodução.",
@@ -42,8 +50,8 @@ MESSAGES = {
         "en": "Spotify playback paused."
     },
     "sr_suggestion": {
-        "br": "Sugestão do Spotify: {label}. É essa? Envie !sr confirmar em até 60s para adicionar, ou faça outro pedido.",
-        "en": "Spotify suggests: {label}. Is this the one? Send !sr confirm within 60s to add it, or make another request."
+        "br": "Sugestão do Spotify: {label}. É essa? Envie !sim em até 60s para adicionar, ou faça outro pedido.",
+        "en": "Spotify suggests: {label}. Is this the one? Send !sim within 60s to add it, or make another request."
     },
     "sr_no_suggestion": {
         "br": "Você não tem uma sugestão ativa; ela pode ter expirado. Faça um novo pedido com !sr <música e artista>.",

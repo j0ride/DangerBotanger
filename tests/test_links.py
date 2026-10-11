@@ -92,7 +92,7 @@ class LinkRequestTests(unittest.IsolatedAsyncioTestCase):
     async def test_uncertain_youtube_match_still_needs_confirmation(self):
         self.youtube_payload = {"title": "musica triste do naruto"}
         reply = await self.service.handle(self.viewer, "!sr https://youtu.be/" + VIDEO)
-        self.assertIn("!sr confirmar", reply)
+        self.assertIn("!sim", reply)
         self.assertEqual(self.queue.count(), 0)
         self.assertEqual(self.policy.users, {})
         self.assertIn("adicionada", await self.service.handle(self.viewer, "!sr confirmar"))
