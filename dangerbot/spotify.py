@@ -192,6 +192,14 @@ class Spotify:
         return re.findall(r"[^\W_]+", "".join(c for c in normalized if not unicodedata.combining(c)))
 
     @classmethod
+    def word_variants(cls, text):
+        # Join punctuation within a name: A-HA -> AHA, AC/DC -> ACDC.
+        # Spaces and numeric separators remain significant.
+        joined = re.sub(r"(?<=[^\W\d_])[-‐‑–—/.'’](?=[^\W\d_])", "", text)
+        return [list(words) for words in dict.fromkeys(tuple(cls.words(variant))
+                                                      for variant in (text, joined))]
+
+    @classmethod
     def title_words(cls, text):
         """Keep the title and alternatives explicitly supported by its spelling."""
         variants = [text]
@@ -211,11 +219,8 @@ class Spotify:
                          or (latin_only(original) and non_latin_only(alternative)))):
                 # Preserve both spellings and every suffix, including live/remix.
                 variants.extend((original + " " + suffix, alternative + " " + suffix))
-        for variant in tuple(variants):
-            # Join punctuation within a name: A-HA -> AHA, AC/DC -> ACDC.
-            # Spaces remain significant; don't turn unrelated titles into one word.
-            variants.append(re.sub(r"(?<=[^\W\d_])[-‐‑–—/.'’](?=[^\W\d_])", "", variant))
-        return [list(words) for words in dict.fromkeys(tuple(cls.words(variant)) for variant in variants)]
+        return [list(words) for words in dict.fromkeys(tuple(words) for variant in variants
+                                                      for words in cls.word_variants(variant))]
 
     @staticmethod
     def word_score(left, right):
@@ -246,7 +251,9 @@ class Spotify:
     @classmethod
     def phrase_score(cls, query, text):
         """Match consecutive words; short words must match exactly, others tolerate small typos."""
-        if not query or len(query) > len(text):
+        # A short excerpt alone must not give an almost perfect full-title score.
+        # Apply the same title coverage requirement as unordered term matching.
+        if not query or len(query) > len(text) or len(query) / len(text) < 0.8:
             return 0
         if version_words(" ".join(query)) != version_words(" ".join(text)):
             return 0
@@ -313,8 +320,10 @@ class Spotify:
 
     @classmethod
     def match_score(cls, query, track):
-        words = cls.words(query)
-        return max((cls.match_title_score(words, title, track) for title in cls.title_words(track.name)), default=0)
+        titles = cls.title_words(track.name)
+        return max((cls.match_title_score(words, title, track)
+                    for words in cls.word_variants(query)
+                    for title in titles), default=0)
 
     @classmethod
     def match_title_score(cls, words, title, track):

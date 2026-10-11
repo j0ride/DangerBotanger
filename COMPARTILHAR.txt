@@ -1,4 +1,4 @@
-DANGERBOTANGER 0.1.7 — WINDOWS 64 BITS
+DANGERBOTANGER 0.1.8 — WINDOWS 64 BITS
 
 Todas as respostas são enviadas como ações /me. A cor/aparência depende
 do cliente de chat e das extensões. Execute somente uma versão do bot por vez.
@@ -28,6 +28,8 @@ acesso à sua conta conforme as regras do Spotify Dashboard.
 COMANDOS DO CHAT
 !help — lista os comandos.
 !sr <música e artista> — pede uma música (conforme a permissão configurada).
+Diferenças de pontuação como A-HA/AHA e don't/dont são reconhecidas.
+Fragmentos curtos de títulos diferentes pedem confirmação antes de entrar na fila.
 !sr <link YouTube> — consulta o título do vídeo público e busca no Spotify.
 Reconhece artista, música e participações; resultados consistentes entram direto.
 Se o artista ou a versão não corresponder, o bot pede confirmação da sugestão.

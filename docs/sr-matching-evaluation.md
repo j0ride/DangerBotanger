@@ -79,3 +79,56 @@ alfabetos alternativos, siglas, títulos com pontuação, artista errado, sigla
 com erro, palavras ausentes, versões e o fluxo de YouTube. Todos os 120 testes
 passaram. A amostra valida esses comportamentos; não mede a taxa de acerto
 de todas as pesquisas reais.
+
+## Evolução da busca nativa na versão 0.1.8
+
+O experimento de usar a API de busca do YouTube foi abandonado. Esta versão
+usa a busca textual do Spotify e faz a comparação localmente, sem acrescentar
+API, chave ou dependência. O suporte existente a links enviados pelo viewer
+continua usando metadados públicos via oEmbed.
+
+A normalização de pontuação entre letras agora se aplica ao pedido e ao
+resultado. Antes, `dont` reconhecia `Don't`, mas a ordem inversa falhava.
+Também foi alinhada a cobertura mínima de título: tanto a comparação em
+ordem quanto fora de ordem exigem pelo menos 80% das palavras da grafia
+comparada. Todos os termos pedidos continuam precisando corresponder;
+palavras repetidas exigem ocorrências distintas. O limite final permanece
+em 90%, com as mesmas validações de artista e versão.
+
+Casos sintéticos adicionados para reproduzir as duas limitações, comparados
+com o código da versão 0.1.7 (`5eaf868`):
+
+| Pedido | Candidato | Bot 0.1.7 | Bot 0.1.8 | Comportamento novo |
+| --- | --- | ---: | ---: | --- |
+| `artist a-ha` | Aha — Artist | 0% | 100% | Aceita |
+| `artist can't stop` | Cant Stop — Artist | 0% | 100% | Aceita |
+| `artist don't stop` | Dont Stop — Artist | 0% | 100% | Aceita |
+| `artist song` | Wrong Song — Artist | 98,13% | 0% | Sugere e pede `!sim` |
+| `cute anymore ilit` | NOT CUTE ANYMORE — ILLIT | 96,75% | 0% | Sugere e pede `!sim` |
+| `artist love` | No Love — Artist | 98,13% | 0% | Sugere e pede `!sim` |
+| `artist i see you again` | Will I See You Again — Artist | 99,25% | 99,25% | Aceita; cobertura suficiente |
+
+Uma pontuação zero indica rejeição pelas regras de correspondência;
+o resultado continua disponível como sugestão. O bot preserva o primeiro
+resultado reproduzível do Spotify quando nenhum candidato é aceito.
+
+Os exemplos reais dos dois arquivos SR MATCHES mantêm suas pontuações:
+
+| Pedido | Bot 0.1.8 |
+| --- | ---: |
+| `im not cute anymore ilit` | 95,06% |
+| `slayyyyyyer brand new chanels` | 98,00% |
+| `breath prodigy` | 94,30% |
+| `hitgs - aha` | 100% |
+| `txt setsuna hanabi` | 100% |
+
+A avaliação local de 24 pares cobriu os exemplos anteriores, os novos casos
+de pontuação e controles de artista, versão, números e termos repetidos.
+Todos corresponderam ao comportamento esperado. No mesmo método de
+microbenchmark, o lote de 24 levou 10,61 ms na versão 0.1.7 e 11,48 ms na
+0.1.8. Esses tempos não incluem rede. Os 126 testes passaram, incluindo
+seleção com um resultado incorreto em primeiro lugar, entrada na fila e
+ausência de inclusão e consumo de cooldown para buscas incertas.
+
+Os casos novos são testes controlados, não novos relatos de usuários.
+Esta avaliação não estima uma taxa global de acerto da busca.
