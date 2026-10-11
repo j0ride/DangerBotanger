@@ -92,9 +92,19 @@ class Spotify:
         candidates = await self.search_candidates(query)
         if not candidates:
             return None
-        score, track = max(((self.match_score(query, track), track) for track in candidates),
-                           key=lambda candidate: candidate[0])
-        return track if score >= 0.90 else SearchSuggestion(candidates[0])
+        scored = [(self.match_score(query, track), track) for track in candidates]
+        score, track = max(scored, key=lambda candidate: candidate[0])
+        if score < 0.90:
+            return SearchSuggestion(candidates[0])
+        if self.match_score(query, track, allow_short_typos=False) < 0.90:
+            # A contextual typo in a short word must identify a single title.
+            # Duplicate album/release entries of the same song are equivalent.
+            identities = {(tuple(self.words(candidate.name)),
+                           tuple(sorted("".join(self.words(name)) for name in candidate.artists)))
+                          for candidate_score, candidate in scored if candidate_score >= 0.90}
+            if len(identities) > 1:
+                return SearchSuggestion(candidates[0])
+        return track
 
     async def search_youtube(self, video_title):
         query = clean_video_title(video_title)
@@ -155,8 +165,7 @@ class Spotify:
         title_score = max((cls.phrase_score(title_words, candidate_words)
                            for title_words in cls.title_words(song)
                            for candidate_words in cls.title_words(candidate)
-                           if title_words and candidate_words
-                           and min(len(title_words), len(candidate_words)) / max(len(title_words), len(candidate_words)) >= 0.8), default=0)
+                           if title_words and candidate_words), default=0)
         artist_score = cls.artist_score(parsed.artist, track.artists)
         guest_score = cls.artist_score(guests, (*track.artists, candidate_guests)) if guests else 1
         return min(title_score, artist_score, guest_score)
@@ -248,16 +257,52 @@ class Spotify:
                 return 0.92
         return 0
 
-    @classmethod
-    def phrase_score(cls, query, text):
-        """Match consecutive words; short words must match exactly, others tolerate small typos."""
-        # A short excerpt alone must not give an almost perfect full-title score.
-        # Apply the same title coverage requirement as unordered term matching.
-        if not query or len(query) > len(text) or len(query) / len(text) < 0.8:
+    @staticmethod
+    def spacing_score(query, text):
+        """Accept exact letters with different spaces, without dropping title terms."""
+        if query == text or max(len(query), len(text)) < 2:
+            return 0
+        # Preserve short words, negations and numbers (a ha/Aha, no where/nowhere).
+        if any(len(word) < 3 or not word.isalpha() or word in {"not", "never", "nao", "sem"}
+               for word in (*query, *text)):
+            return 0
+        return 0.97 if "".join(query) == "".join(text) else 0
+
+    @staticmethod
+    def short_typo_score(query, text):
+        """One short-letter substitution, anchored by at least two exact title words.
+
+        Callers additionally require a strongly matching named artist. This does
+        not relax short words for title-only requests or artist aliases.
+        """
+        if len(query) != len(text) or len(query) < 3:
             return 0
         if version_words(" ".join(query)) != version_words(" ".join(text)):
             return 0
-        best = 0
+        changed = [(left, right) for left, right in zip(query, text) if left != right]
+        if len(changed) != 1:
+            return 0
+        left, right = changed[0]
+        negations = {"no", "not", "never", "nao", "sem", "nor"}
+        if (len(left) != len(right) or len(left) not in {2, 3}
+                or not left.isalpha() or not right.isalpha()
+                or left in negations or right in negations
+                or sum(a != b for a, b in zip(left, right)) != 1):
+            return 0
+        return 0.95 * (len(query) - 1 + 0.84) / len(query) + 0.05
+
+    @classmethod
+    def phrase_score(cls, query, text):
+        """Match consecutive words; short words must match exactly, others tolerate small typos."""
+        if not query or not text:
+            return 0
+        if version_words(" ".join(query)) != version_words(" ".join(text)):
+            return 0
+        best = cls.spacing_score(query, text)
+        # A short excerpt alone must not give an almost perfect full-title score.
+        # Apply the same title coverage requirement as unordered term matching.
+        if len(query) > len(text) or len(query) / len(text) < 0.8:
+            return best
         for start in range(len(text) - len(query) + 1):
             ratios = [cls.word_score(left, right)
                       for left, right in zip(query, text[start:start + len(query)])]
@@ -273,10 +318,13 @@ class Spotify:
         Bipartite augmenting paths prevent one result word from satisfying several
         requested words. Unlike a partial token-set ratio, missing terms reject.
         """
-        if not query or len(query) > len(text) or len(query) / len(text) < 0.8:
+        if not query or not text:
             return 0
         if version_words(" ".join(query)) != version_words(" ".join(text)):
             return 0
+        spacing = cls.spacing_score(query, text)
+        if len(query) > len(text) or len(query) / len(text) < 0.8:
+            return spacing
         edges = [sorted((index for index, word in enumerate(text) if cls.word_score(term, word)),
                         key=lambda index: cls.word_score(term, text[index]), reverse=True)
                  for term in query]
@@ -292,16 +340,16 @@ class Spotify:
             return False
         for index in sorted(range(len(query)), key=lambda index: len(edges[index])):
             if not assign(index, set()):
-                return 0
+                return spacing
         average = sum(cls.word_score(query[index], text[target]) for target, index in matches.items()) / len(query)
         score = 0.95 * average + 0.05 * len(query) / len(text)
         # Prefer the original word order when several tracks contain the same terms.
         ordered = any(all(cls.word_score(left, right) for left, right in zip(query, text[start:]))
                       for start in range(len(text) - len(query) + 1))
-        return score if ordered else score * 0.98
+        return max(spacing, score if ordered else score * 0.98)
 
     @classmethod
-    def coverage_score(cls, words, track, title):
+    def coverage_score(cls, words, track, title, *, allow_short_typos=True):
         best = cls.term_score(words, title)
         # Artist terms may be at the beginning, end or between title terms.
         artist_span_limit = sum(len(cls.words(name)) for name in track.artists) + len(track.artists) + 1
@@ -314,29 +362,33 @@ class Spotify:
                 if artist_score < 0.85:
                     continue
                 title_score = cls.term_score(song, title)
+                if allow_short_typos and artist_score >= 0.96:
+                    title_score = max(title_score, cls.short_typo_score(song, title))
                 if title_score >= 0.85:
                     best = max(best, 0.75 * title_score + 0.25 * artist_score)
         return best
 
     @classmethod
-    def match_score(cls, query, track):
+    def match_score(cls, query, track, *, allow_short_typos=True):
         titles = cls.title_words(track.name)
-        return max((cls.match_title_score(words, title, track)
+        return max((cls.match_title_score(words, title, track, allow_short_typos=allow_short_typos)
                     for words in cls.word_variants(query)
                     for title in titles), default=0)
 
     @classmethod
-    def match_title_score(cls, words, title, track):
+    def match_title_score(cls, words, title, track, *, allow_short_typos=True):
         best = cls.phrase_score(words, title)
         # Accept either song + artist or artist + song, requiring both parts to match.
         for split in range(1, len(words)):
             for song, artist in ((words[:split], words[split:]), (words[split:], words[:split])):
                 title_score = cls.phrase_score(song, title)
                 artist_score = cls.artist_score(" ".join(artist), track.artists)
+                if allow_short_typos and artist_score >= 0.96:
+                    title_score = max(title_score, cls.short_typo_score(song, title))
                 if min(title_score, artist_score) >= 0.85:
                     best = max(best, 0.75 * title_score + 0.25 * artist_score)
         if best < 1:
-            best = max(best, cls.coverage_score(words, track, title))
+            best = max(best, cls.coverage_score(words, track, title, allow_short_typos=allow_short_typos))
         # A conversational "I'm" may precede a remembered title. Remove it only
         # when at least two title words AND the named artist still match.
         if len(words) >= 4 and words[0] == "im" and "im" not in title:

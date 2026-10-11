@@ -1,4 +1,4 @@
-DANGERBOTANGER 0.1.8 — WINDOWS 64 BITS
+DANGERBOTANGER 0.1.9 — WINDOWS 64 BITS
 
 Todas as respostas são enviadas como ações /me. A cor/aparência depende
 do cliente de chat e das extensões. Execute somente uma versão do bot por vez.
@@ -29,6 +29,9 @@ COMANDOS DO CHAT
 !help — lista os comandos.
 !sr <música e artista> — pede uma música (conforme a permissão configurada).
 Diferenças de pontuação como A-HA/AHA e don't/dont são reconhecidas.
+Reconhece Tear Drop/teardrop e um erro em palavra curta quando o artista e
+o restante do título correspondem. Títulos diferentes igualmente plausíveis
+continuam pedindo confirmação.
 Fragmentos curtos de títulos diferentes pedem confirmação antes de entrar na fila.
 !sr <link YouTube> — consulta o título do vídeo público e busca no Spotify.
 Reconhece artista, música e participações; resultados consistentes entram direto.
